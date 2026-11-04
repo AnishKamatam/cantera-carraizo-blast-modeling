@@ -1,75 +1,106 @@
-# Blast Modelling at the Carraizo Quarry from a Drone-Built Digital Twin
+# Cantera Carraizo Blast Modeling
 
-**Status: in progress. All simulation results are uncalibrated and must not be used for safety decisions.**
+We are building a 3D digital twin of the Carraizo quarry in Puerto Rico from drone video, then using it to simulate how blast layouts and timing change throw, muckpile shape and vibration on the quarry's real geometry.
 
-## Abstract
+> [!WARNING]
+> **All results are uncalibrated. Do not use them for safety decisions.** The quarry has no blast records or survey data, so hole layouts, charges and rock properties are labelled assumptions. Use this project to compare scenarios, not to predict absolute outcomes.
 
-This project builds a 3D digital twin of the Carraizo quarry in Puerto Rico from drone video and uses it as the real geometry for blast simulation. It combines photogrammetry, an existing open-source blast physics library, and planned GPU solvers using the Material Point Method (MPM) and the Discrete Element Method (DEM). The quarry has no blast records or survey data, so hole layouts, charges and rock properties are labelled assumptions with ranges. Results compare scenarios and don't predict absolute outcomes. We also audited the existing library against its cited research and corrected the errors that had clear evidence. Its core formulas mostly hold, but several higher-level models were not what they claimed to be, and its throw defaults reach only about 44% of the surveyed throw on the shot they were tuned on.
-
-## Research questions
-
-1. Can drone video alone give quarry geometry good enough for blast simulation?
-2. How do layout and timing choices change simulated throw, muckpile shape and vibration on real bench geometry?
-3. Where do fast empirical models and higher-fidelity MPM/DEM agree and disagree?
-
-## Status
+## Project status
 
 | Component | State |
 |---|---|
-| Sparse reconstruction | Done: 1,232 of 1,232 frames in one model |
-| Dense reconstruction and terrain | Running; not yet verified |
-| Scale check against satellite imagery | Not done |
-| Scenario builder and runner for existing models | Done and tested |
-| Audit of existing models | Done; [open items remain](docs/verification/README.md#known-open-issues) |
+| Sparse reconstruction | Complete: 1,232 of 1,232 frames in one model |
+| Dense reconstruction and terrain | Complete; accuracy not yet checked |
+| Scale check against satellite imagery | Not started |
+| Scenario builder and fast-model runner | Built and tested; not yet run on a Carraizo scenario |
+| Audit of the blast-physics library | Complete; [open issues remain](docs/verification/README.md#known-open-issues) |
 | GPU DEM | Not started |
 | GPU MPM and MPM-to-DEM handoff | Not started |
 | Validation against real Carraizo blasts | Not started; planned from 3 fixed cameras |
 
-## Methods
+## How it works
 
-**Reconstruction** (`twin/`). Photogrammetry with COLMAP on Modal GPUs: 1 fps frames from usable video ([segments](twin/segments.json)), global mapping, PatchMatch stereo split across up to 10 GPUs, depth map fusion, then colour-based vegetation removal and terrain export. Scale comes from drone telemetry. Gaps up to 15 m are interpolated and flagged, so they can't pass for measured rock.
+```
+drone video -> COLMAP on Modal GPUs -> terrain grids and mesh
+                                              |
+                                              v
+                                        blast scenario -> fast JS models -> scenario comparison
+                                              |                                     ^
+                                              +------> GPU MPM -> GPU DEM ----------+
+                                                       (planned)
+```
 
-**Scenarios** (`sim/scenario/`). A blast block is cut from the terrain as a closed mesh, and the ground after removing it becomes the collision surface. Blocks on NODATA or heavily interpolated ground are rejected. Every assumed value carries a range and a source.
+- **Twin (`twin/`):** reconstructs the site from 1 fps video frames, removes vegetation by colour, and exports terrain in local metres. Scale comes from drone telemetry. Gaps up to 15 m are interpolated and flagged.
+- **Scenarios (`sim/scenario/`):** cut a closed blast block from the terrain and use the remaining ground as the collision surface. Every assumed value records its range and source.
+- **Fast models (`sim/run.js`):** run site-law vibration, Holmberg-Persson damage, McKenzie flyrock burial depth and voxel throw on a scenario. Vibration receptors are abstract rings at set distances, never real locations.
+- **Planned GPU solvers:** MPM for fracture and early motion in one block, then DEM for throw and the muckpile on the real terrain. See the [design](docs/design/blast-simulation-design.md).
 
-**Fast models** (`sim/run.js`). Runs the library's site-law vibration, Holmberg-Persson damage, McKenzie flyrock burial depth and voxel throw on a scenario. Receptors are abstract rings at set distances, never real locations.
+## Current results
 
-**Planned solvers.** See the [design](docs/design/blast-simulation-design.md). The audit adds a requirement: the GPU DEM needs real Coulomb friction, because the library's is not.
+### Terrain
 
-## Validation so far
+| Measure | Value |
+|---|---|
+| Dense points | 37.6 million |
+| Grid | 0.5 m cells, about 702 m × 654 m |
+| Site cells interpolated | 54.3% |
 
-Details and evidence levels are in the [verification record](docs/verification/README.md).
+More than half of the site is interpolated rather than measured. The scenario builder rejects blocks with more than 25% interpolated cells by default, so usable blocks are limited to better-measured ground.
 
-**Against the surveyed SWELLFACTOR muckpile** (a real shot at a different site, so this tests the code, not Carraizo's rock):
+### Model check against a surveyed shot
+
+We compared the throw model with `SWELLFACTOR`, a real shot with a surveyed muckpile from a different site. This tests the code, not Carraizo's rock.
 
 | Measure | Surveyed | Model at defaults |
 |---|---|---|
 | Throw distance | 34.0 m | 13.6–15.3 m |
 | Throw direction | 130.1° | 130.1–130.8° |
-| Muckpile height error (RMS) | n/a | 5.0–5.9 m, against about 7.8 m if nothing moved |
+| Muckpile height error (RMS) | n/a | 5.0–5.9 m, compared with about 7.8 m if nothing moved |
 
-Throw distance only matches after fitting strength to the survey, which is not evidence of accuracy, and fitting barely improves the shape.
+The defaults reach only about 44% of the surveyed throw. Fitting explosive strength to the survey brings throw to 34.3 m, but that is not evidence of accuracy, and the RMS error stays at about 5.2 m. No run fully settled; 93–97% of blocks came to rest. Full figures are in [`results/swellfactor-verification.json`](results/swellfactor-verification.json).
 
-**Test strength.** All tests pass, but passing says little alone. In a [mutation check](results/mutation-summary.json) we broke formulas on purpose to see whether tests noticed.
+### Library audit
+
+We checked the [blast-physics-js](https://github.com/brentbuffham/blast-physics-js) models against their cited sources and corrected errors that had clear evidence. Its core formulas mostly hold, but several higher-level models were not what they claimed to be. The [verification record](docs/verification/README.md) lists the evidence level and verdict for each model. The [changelog](CHANGELOG.md) lists the corrections, which change some published numbers.
 
 ## Limitations
 
-- **No site data:** blast designs and rock properties are assumptions. Rock type is unconfirmed.
-- **Twin accuracy:** not survey grade. Scale relies on drone GPS until the satellite check is done, and areas under vegetation are interpolated.
-- **Absolute numbers:** throw, vibration and flyrock values are uncalibrated. Use differences between scenarios, and treat any within the assumed ranges as inconclusive.
-- **Existing DEM:** friction is not physical, runs don't fully settle, and about 7% of rock can end up in a mesh artefact at block edges. Results report these.
-- **Unverified sources:** several cited papers are paywalled, so those models are marked unverified.
+- **Site data:** blast designs and rock properties are assumptions, and the rock type is unconfirmed.
+- **Twin accuracy:** the twin is not survey grade. Scale relies on drone GPS until the satellite check is done.
+- **Comparisons:** treat any difference between scenarios that falls within the assumed ranges as inconclusive.
+- **Existing DEM:** friction is not true Coulomb friction, runs don't fully settle, and about 7% of rock can end up in a mesh artefact at block edges. Results report these effects.
+- **Sources:** several cited papers are paywalled, so those models are marked unverified.
+- **Planned validation:** the cameras can only verify visible outcomes such as surface change, muckpile extent and firing sequence. Charge, rock strength and vibration will remain unmeasured.
 
-## Reproducing
+## Getting started
+
+You need Node.js 20 or later.
 
 ```bash
 npm ci
-npm test                                  # all tests
-node scripts/verify-swellfactor.mjs       # comparison with the surveyed muckpile
-python3 scripts/mutation-check.py <copy>  # test strength, on a throwaway copy of the repo
-node scripts/run-scenario.mjs <scenario>  # existing models on a scenario
+npm test
+node scripts/verify-swellfactor.mjs
 ```
 
-Reconstruction needs Modal credentials in `.env` and the raw video, which is not distributed because it shows the site and people:
+`verify-swellfactor.mjs` reruns the comparison with the surveyed muckpile.
+
+To run the fast models on an existing scenario directory:
+
+```bash
+node scripts/run-scenario.mjs <scenarioDir> [--seed N] [--max-voxels N] [--out DIR]
+```
+
+There is no command yet for building a Carraizo scenario. Use the functions in `sim/scenario/` for now.
+
+To check how many deliberate formula breaks the tests catch, copy the repo outside git, run `npm ci` in the copy, and then run:
+
+```bash
+python3 scripts/mutation-check.py <copy>
+```
+
+### Rebuilding the twin
+
+Reconstruction needs Modal credentials in `.env` and the raw video. We don't distribute the video because it shows the site and people.
 
 ```bash
 set -a; . ./.env; set +a
@@ -78,22 +109,21 @@ modal run --detach twin/modal_twin.py::dense
 modal run --detach twin/modal_twin.py::terrain
 ```
 
+Outputs are saved to the `carraizo-twin` Modal volume.
+
 ## Repository layout
 
 ```
-twin/          drone reconstruction pipeline
-sim/           scenario builder, runner and their tests
-src/ test/     blast-physics-js library, with audit corrections
-scripts/       reproducible checks and the scenario runner
-results/       recorded verification outputs
-docs/
-  verification/  evidence for each model, and known open issues
-  design/        simulation design and build plans
-  library.md     library documentation and API
-  references.bib references confirmed during the audit
-examples/      library demos and the SWELLFACTOR test shot
+twin/      drone reconstruction pipeline
+sim/       scenario builder, fast-model runner and their tests
+src/       blast-physics-js library, with audit corrections
+test/      library tests
+scripts/   reproducible checks and the scenario runner
+results/   recorded verification outputs
+docs/      verification record, design documents, library API and references
+examples/  library demos and the SWELLFACTOR test shot
 ```
 
 ## Credit and license
 
-The physics library is [blast-physics-js](https://github.com/brentbuffham/blast-physics-js) by Brent Buffham, MIT license, and this repo includes corrected versions of it. See [LICENSE](LICENSE) and [CITATION.cff](CITATION.cff). Please report library corrections upstream rather than assuming they apply there.
+The physics library is [blast-physics-js](https://github.com/brentbuffham/blast-physics-js) by Brent Buffham, under the MIT license. This repo includes corrected versions of it, so please check whether a correction applies upstream before assuming it does. See [`LICENSE`](LICENSE) and [`CITATION.cff`](CITATION.cff).
