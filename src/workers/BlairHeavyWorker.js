@@ -24,6 +24,8 @@
  *     { type: 'error', message }
  */
 
+import { blairIncrement, blairPrimerElement } from "../core/BlairScaledHeelan.js";
+
 /* global self */
 
 var PI = Math.PI;
@@ -81,7 +83,7 @@ function initConstants(mp) {
     chargeExp = num(mp.chargeExponent, 0.7);
     cutoff = num(mp.cutoffDistance, 0.5);
     cutoff2 = cutoff * cutoff;
-    maxDisplayDist = num(mp.maxDisplayDistance, 100);
+    maxDisplayDist = num(mp.maxDisplayDistance, Infinity);
     maxDD2 = maxDisplayDist * maxDisplayDist;
 
     Nm2 = NSP - 2;
@@ -147,10 +149,7 @@ function preComputeElements(deckEntries, holeEntries, mp, displayTimeMs) {
             var elemCenter = m + 0.5;
             var distFromPrimerElems = Math.abs(elemCenter - primerElemPos);
 
-            var fj = distFromPrimerElems + 1.0;
-            var fmw = fj * fmelt;
-            var fmwPrev = (fj - 1.0) * fmelt;
-            var sfm = scalBase * (Math.pow(fmw, chargeExp) - Math.pow(Math.max(fmwPrev, 1e-20), chargeExp));
+            var sfm = scalBase * blairIncrement(m, elemsPerDeck, blairPrimerElement(dk.primerFraction, elemsPerDeck), fmelt, chargeExp);
 
             var elemDepth = elemCenter * dL;
             tPosX.push(dk.topX + dirX * elemDepth);

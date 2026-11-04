@@ -129,7 +129,7 @@ sim/                  new simulation code
   modal_sim.py        Modal entry points
   tests/              pytest suite for the Python solvers, without a GPU where possible
 scripts/              Node runner for scenarios
-docs/superpowers/     designs and plans
+docs/design/          designs and plans
 ```
 
 `sim/`, `twin/` and `scripts/` stay outside the npm package, whose `files` field already limits it to `dist/`, `src/` and `CHANGELOG.md`. Simulation outputs stay on the Modal volume and out of git.

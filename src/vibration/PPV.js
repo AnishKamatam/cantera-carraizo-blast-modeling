@@ -11,6 +11,8 @@
  * Extracted from Kirra's PPVModel.js GLSL fragment shader.
  */
 
+import { groupByDelay } from "../core/ChargeColumns.js";
+
 /**
  * Compute PPV for a single charge at a single observation point.
  *
@@ -42,19 +44,24 @@ export function computePointPPV(point, centroid, mass, params) {
  *
  * @param {{ x:number, y:number, z:number }} point - Observation point (m)
  * @param {Array}  deckEntries - Array of DeckEntry objects
- * @param {Object} params      - Site law parameters (K, B, chargeExponent, cutoffDistance)
+ * @param {Object} params      - Site law parameters, plus delayWindowMs (default 8; null = per deck) (K, B, chargeExponent, cutoffDistance)
  * @returns {number} Peak PPV (mm/s)
  */
 export function computePPV(point, deckEntries, params) {
-    var p = Object.assign({ K: 1140, B: 1.6, chargeExponent: 0.5, cutoffDistance: 1.0 }, params || {});
+    var p = Object.assign({ K: 1140, B: 1.6, chargeExponent: 0.5, cutoffDistance: 1.0, delayWindowMs: 8 }, params || {});
     var peakPPV = 0.0;
-    for (var i = 0; i < deckEntries.length; i++) {
-        var dk = deckEntries[i];
-        if (dk.mass <= 0) continue;
-        var cx = (dk.topX + dk.baseX) * 0.5;
-        var cy = (dk.topY + dk.baseY) * 0.5;
-        var cz = (dk.topZ + dk.baseZ) * 0.5;
-        var ppv = computePointPPV(point, { x: cx, y: cy, z: cz }, dk.mass, p);
+    var charged = deckEntries.filter(function (dk) { return dk.mass > 0; });
+    var groups = groupByDelay(charged, function (dk) { return dk.timingMs || 0; }, p.delayWindowMs);
+    for (var g = 0; g < groups.length; g++) {
+        var mass = 0, nearest = null, nearestD2 = Infinity;
+        for (var i = 0; i < groups[g].length; i++) {
+            var dk = groups[g][i];
+            mass += dk.mass;
+            var cx = (dk.topX + dk.baseX) * 0.5, cy = (dk.topY + dk.baseY) * 0.5, cz = (dk.topZ + dk.baseZ) * 0.5;
+            var d2 = (point.x - cx) * (point.x - cx) + (point.y - cy) * (point.y - cy) + (point.z - cz) * (point.z - cz);
+            if (d2 < nearestD2) { nearestD2 = d2; nearest = { x: cx, y: cy, z: cz }; }
+        }
+        var ppv = computePointPPV(point, nearest, mass, p);
         if (ppv > peakPPV) peakPPV = ppv;
     }
     return peakPPV;

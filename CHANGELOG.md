@@ -7,6 +7,19 @@ may already have saved, so read them before comparing old output with new.
 
 ## [Unreleased]
 
+Corrections from a research audit; see `docs/verification/README.md`. **Changes numbers** except where noted.
+
+- Site law (`computePPV`, `computePPVDeck`): W is now charge per delay (USBM RI 6774), not per deck, so charges firing within `delayWindowMs` (default 8 ms) add. Two equal charges read about 1.74× higher. `delayWindowMs: null` restores per-deck values. `evaluateReceptor` adds `ppvPerDelay`; `ppvMax` is unchanged.
+- Scaled Heelan, Scaled Heelan Blair, Heelan Original: removed the unsourced decay below the toe plane, which read about 1/10,000 of the site law on lower benches at any range. `belowToeDecay: true` restores it.
+- Blair-Minchinton model and worker: now use the charge-conserving `blairIncrement`, as the fast models already did, and scan every element for the earliest arrival.
+- `BlairHeavyWorker`: no longer returns 0 beyond an undocumented 100 m default.
+- `computeBoreholePressure`: R is never below the hole radius, so the wall reads Pb (it was capped at under 4% of Pb), and decoupled charges use the Hustrulid & Iverson (2011) correction.
+- `computePowderFactor`: uses a true capsule around the column. It is a local charge concentration, not a blast powder factor.
+- `generateFlyrockShroud` and `FlyrockWorker`: the envelope now reaches clearance = FoS × range. A dome labelled FoS 2 was drawn at half that clearance.
+- `swellEmergent`: in-situ volume is now one voxel per block, not 0.296 of one, which read about 3.4× high.
+- `parseInstantelCSV`: reads the file's `Units`, converts in/s to mm/s, and rejects unknown units.
+- `binDecksByTime`: `tCentreMs` is the real bin time, not based on the deck index.
+- Docs: removed the "calibrated" claim for throw defaults, and fixed examples that passed `chargeExponent: 0.5` to the scaled models.
 - `BlastMovementSimulator` takes an optional `groundZ` (world Z), so blocks can fall below the base of the blast volume onto a lower bench. Without it, results are unchanged.
 
 ## [0.3.3] — 2026-10-18

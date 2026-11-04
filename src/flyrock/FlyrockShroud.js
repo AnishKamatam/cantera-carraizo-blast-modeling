@@ -56,6 +56,12 @@ function passesAngleCull(v0, v1, v2, cosEndAngle) {
 export function generateFlyrockShroud(holeData, params, onProgress) {
     var progress = onProgress || function () {};
     if (!holeData || holeData.length === 0) return null;
+    // maxVelocity comes from base distances. Range scales with V^2, so the envelope
+    // reaches clearance = FoS x range at V x sqrt(FoS).
+    var fosScale = Math.sqrt(params.factorOfSafety > 0 ? params.factorOfSafety : 2);
+    holeData = holeData.map(function (hd) {
+        return Object.assign({}, hd, { maxVelocity: hd.maxVelocity * fosScale });
+    });
 
     var iterations = params.iterations || 40;
     var endAngleDeg = params.endAngleDeg !== undefined ? params.endAngleDeg : 85;

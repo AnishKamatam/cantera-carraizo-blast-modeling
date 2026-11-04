@@ -20,6 +20,7 @@
  */
 
 import { deriveSWaveVelocity } from "../core/RockMass.js";
+import { blairIncrement, blairPrimerElement } from "../core/BlairScaledHeelan.js";
 import { DEFAULT_VOD, DEFAULT_EXPLOSIVE_DENSITY, PULSE_PEAK_NORM } from "../core/Constants.js";
 import { blairSfacp, blairSfacs } from "../core/RadiationPattern.js";
 import { blairWaveform, pulseCutoff, pulseDuration as calcPulseDuration } from "../core/Waveform.js";
@@ -95,9 +96,8 @@ export function computeBlairMinchinton(point, deckEntries, holeEntries, params) 
         var timingS = dk.timingMs / 1000.0;
         var primerDepthInDeck = dk.primerFraction * deckLen;
 
-        // Sample boundary elements for time bounds
+        // Every element: with an interior primer the earliest arrival can be anywhere.
         for (var m = 0; m < elemsPerDeck; m++) {
-            if (m > 0 && m < elemsPerDeck - 1 && m !== Math.floor(elemsPerDeck / 2)) continue;
             var elemDepth = (m + 0.5) * dL;
             var eX = topX + dirX * elemDepth;
             var eY = topY + dirY * elemDepth;
@@ -164,10 +164,7 @@ export function computeBlairMinchinton(point, deckEntries, holeEntries, params) 
             for (var m = 0; m < elemsPerDeck; m++) {
                 var elemCenter = m + 0.5;
                 var distFromPrimerElems = Math.abs(elemCenter - primerElemPos);
-                var fj = distFromPrimerElems + 1.0;
-                var fmw = fj * fmelt;
-                var fmwPrev = (fj - 1.0) * fmelt;
-                var scalFacM = scalBase * (Math.pow(fmw, A) - Math.pow(Math.max(fmwPrev, 1e-20), A));
+                var scalFacM = scalBase * blairIncrement(m, elemsPerDeck, blairPrimerElement(dk.primerFraction, elemsPerDeck), fmelt, A);
 
                 var elemDepth = elemCenter * dL;
                 var eX = topX + dirX * elemDepth;

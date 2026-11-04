@@ -8,6 +8,8 @@
 import { surfaceFromHeightfield } from "../../src/movement/SurfaceMesh.js";
 import { heightAt } from "./terrain.js";
 
+const COLLISION_CELL_M = 2;
+
 export function insidePolygon(x, y, polygon) {
     let inside = false;
     for (let a = 0, b = polygon.length - 1; a < polygon.length; b = a++) {
@@ -106,7 +108,7 @@ function enclosedVolume({ pos, idx }) {
  * sampling step outward, so they can never cut into the block's edge, where rock
  * would start behind them and be pushed down through the floor.
  */
-function buildTopo(dtm, polygon, padM, stride, floorZ) {
+function buildTopo(dtm, polygon, padM, stride, floorZ, id = "terrain-shell", role = "shell") {
     const xs = polygon.map((p) => p[0]), ys = polygon.map((p) => p[1]);
     const cell = dtm.cell * stride;
     const firstI = Math.max(0, Math.ceil((Math.min(...xs) - padM - dtm.x0) / cell));
@@ -126,16 +128,19 @@ function buildTopo(dtm, polygon, padM, stride, floorZ) {
                 }
             }
             const ground = heightAt(dtm, x, y);
-            z[j * G.nx + i] = nearBlock ? floorZ : Number.isNaN(ground) ? -1e9 : ground;
+            z[j * G.nx + i] = nearBlock && floorZ !== null ? floorZ : Number.isNaN(ground) ? -1e9 : ground;
         }
     }
-    const mesh = surfaceFromHeightfield(z, G, { id: "terrain-shell", name: "terrain-shell" });
+    const mesh = surfaceFromHeightfield(z, G, { id, name: id });
     if (!mesh) throw new Error("cutBlock: no terrain around the polygon to collide with");
-    return { id: mesh.id, name: mesh.name, role: "shell", pos: mesh.pos, idx: mesh.idx, np: mesh.pos.length / 3, nt: mesh.idx.length / 3 };
+    return { id: mesh.id, name: mesh.name, role, pos: mesh.pos, idx: mesh.idx, np: mesh.pos.length / 3, nt: mesh.idx.length / 3 };
 }
 
-export function cutBlock(terrain, polygon, { floorZ, maxFilled = 0.25, topoPadM = 100, topoStride = 2 }) {
+export function cutBlock(terrain, polygon, { floorZ, maxFilled = 0.25, topoPadM = 100, topoStride }) {
     const { dtm, filled } = terrain;
+    // Near block size: the library's collision pushes once per triangle touched, so a
+    // much finer mesh stops rock settling, and a coarser one widens the edge trench.
+    const stride = topoStride ?? Math.max(1, Math.round(COLLISION_CELL_M / dtm.cell));
     const cells = selectCells(dtm, polygon);
     if (cells.length === 0) throw new Error("cutBlock: polygon contains no grid cells");
 
@@ -162,11 +167,14 @@ export function cutBlock(terrain, polygon, { floorZ, maxFilled = 0.25, topoPadM 
     }
     return {
         volume,
-        topo: buildTopo(dtm, polygon, topoPadM, topoStride, floorZ),
+        topo: buildTopo(dtm, polygon, topoPadM, stride, floorZ),
+        preblast: buildTopo(dtm, polygon, topoPadM, stride, null, "preblast-terrain", "other"),
         filledFraction,
         volumeM3: enclosedVolume(volume),
         centroid: { x: cx / mass, y: cy / mass, z: cz / mass },
         polygon,
         floorZ,
+        topoPadM,
+        topoStride: stride,
     };
 }

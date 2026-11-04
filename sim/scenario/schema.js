@@ -38,6 +38,9 @@ export function validateScenario(s) {
     if (!Array.isArray(s.measured)) throw new Error("scenario: measured must be an array");
     if (!s.assumptions || typeof s.assumptions !== "object") throw new Error("scenario: assumptions must be an object");
     for (const [name, record] of Object.entries(s.assumptions)) checkAssumption(name, record);
+    if (s.block && !(Array.isArray(s.block.polygon) && Number.isFinite(s.block.floorZ))) {
+        throw new Error("scenario: block needs a polygon and floorZ");
+    }
     for (const surface of s.surfaces) {
         if (!surface.id) throw new Error("scenario: every surface needs an id");
         if (!SURFACE_ROLES.includes(surface.role)) {

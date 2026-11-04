@@ -1,11 +1,11 @@
 /**
- * PowderFactor.js — Volumetric Powder Factor
+ * PowderFactor.js — Local charge concentration, not a blast powder factor (kg/bcm)
  *
  * Author: Brent Buffham — blastingapps.com & kirra-design.com
  * License: MIT
  *
  * PF = deckMass / capsule_volume
- * where capsule_volume = (4/3)π × R³  (spherical influence volume)
+ * where capsule_volume = π R² L + (4/3) π R³, the capsule around a deck of length L,
  * and R = distance from observation point to nearest point on deck segment.
  *
  * Extracted from Kirra's PowderFactorModel.js GLSL fragment shader.
@@ -51,8 +51,10 @@ export function computePowderFactor(point, deckEntries, params) {
         var bot = { x: dk.baseX, y: dk.baseY, z: dk.baseZ };
         var R = Math.max(distToSegment(point, top, bot), cutoff);
 
-        // Capsule volume: (4/3)π R³
-        var capsuleVol = 4.18879 * R * R * R;
+        // Capsule around the charge column: π R² L + (4/3) π R³
+        var dLx = dk.baseX - dk.topX, dLy = dk.baseY - dk.topY, dLz = dk.baseZ - dk.topZ;
+        var L = Math.sqrt(dLx * dLx + dLy * dLy + dLz * dLz);
+        var capsuleVol = Math.PI * R * R * L + (4 / 3) * Math.PI * R * R * R;
         var deckPF = dk.mass / capsuleVol;
         if (deckPF > peakPF) peakPF = deckPF;
     }

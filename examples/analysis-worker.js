@@ -37,7 +37,7 @@ import {
 // Step 1) Shared model parameters — same values precompute.mjs uses
 var SITE = { K: 1140, B: 1.6, chargeExponent: 0.5, cutoffDistance: 1.0 };
 var HEELAN = {
-	K: 1140, B: 1.6, chargeExponent: 0.5, elemsPerDeck: 12,
+	K: 1140, B: 1.6, elemsPerDeck: 12,
 	pWaveVelocity: 4500, poissonRatio: 0.25, cutoffDistance: 0.5,
 	qualityFactorP: 50, qualityFactorS: 30
 };

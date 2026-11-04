@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it and the blast-physics-js library it builds on."
+title: "Blast Modelling at the Carraizo Quarry from a Drone-Built Digital Twin"
+type: software
+authors:
+  - family-names: Kamatam
+    given-names: Anish
+repository-code: "https://github.com/AnishKamatam/cantera-carraizo-blast-modeling"
+license: MIT
+references:
+  - type: software
+    title: "blast-physics-js"
+    authors:
+      - family-names: Buffham
+        given-names: Brent
+    repository-code: "https://github.com/brentbuffham/blast-physics-js"
+    license: MIT

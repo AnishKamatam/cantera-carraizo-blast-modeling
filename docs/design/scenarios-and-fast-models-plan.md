@@ -8,7 +8,7 @@
 
 **Tech Stack:** Node 20+, ES modules, vitest, the existing `src/` library. No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-11-03-blast-simulation-design.md`
+**Spec:** `docs/design/blast-simulation-design.md`
 
 **Scope:** Spec stages 1 and 2 only. Separate plans follow for the GPU DEM (stage 4), MPM and handoff (stage 3), and comparison reports (stage 5).
 

@@ -91,8 +91,9 @@ export function swellEmergent(S, cell) {
     var insituV = 0;
     for (var i = 0; i < S.N; i++) {
         if (S.state[i] === ST_INACTIVE) continue;
-        var r = S.baseRad[i];
-        insituV += (4 / 3) * Math.PI * r * r * r * 0.68;
+        // One voxel of rock per block; baseR is 0.47 of the voxel edge.
+        var voxel = S.baseR / 0.47;
+        insituV += voxel * voxel * voxel;
         var k = Math.floor(S.px[i] / cell) + "|" + Math.floor(S.py[i] / cell);
         var e = occ.get(k);
         if (!e) occ.set(k, { lo: S.pz[i], hi: S.pz[i] });

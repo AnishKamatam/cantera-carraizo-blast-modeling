@@ -165,6 +165,19 @@ describe("cutBlock", () => {
             }
         }
     });
+    it("samples the collision surface near block size whatever the grid's cell", () => {
+        const half = {
+            dtm: parseAsc(asc(120, 120, 0.5, () => 110)),
+            filled: parseAsc(asc(120, 120, 0.5, () => 0)),
+        };
+        expect(cutBlock(half, square, { floorZ: 100 }).topoStride).toBe(4);
+        expect(cutBlock(flat(110), square, { floorZ: 100 }).topoStride).toBe(2);
+    });
+    it("keeps the untouched ground for measuring where rock ends up", () => {
+        const b = cutBlock(flat(110), square, { floorZ: 100, topoPadM: 10 });
+        expect(b.preblast.role).toBe("other");
+        for (let i = 0; i < b.preblast.np; i++) expect(b.preblast.pos[i * 3 + 2]).toBe(110);
+    });
     it("stores only the fields a scenario needs on the collision surface", () => {
         const { topo } = cutBlock(flat(110), square, { floorZ: 100, topoPadM: 5 });
         expect(Object.keys(topo).sort()).toEqual(["id", "idx", "name", "np", "nt", "pos", "role"]);

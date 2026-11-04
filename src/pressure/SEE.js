@@ -1,13 +1,16 @@
 /**
- * SEE.js — Specific Explosive Energy
+ * SEE.js — Specific Explosive Energy index
+ *
+ * An index only: no published source was found for this form, and it reads about
+ * 2.7x above ANFO's published energy. Don't use it as energy input to a solver.
  *
  * Author: Brent Buffham — blastingapps.com & kirra-design.com
  * License: MIT
  *
  *   SEE = ½ · ρ_e · VOD²     (J/m³ → GJ/m³)
  *
- * ANFO (ρ 0.85 kg/L, VOD 4500) ≈ 8.6 GJ/m³; emulsion (1.2 kg/L, 5600) ≈ 18.9 GJ/m³.
- * Per-deck values are IDW-blended in plan to give a smooth energy-distribution map.
+ * ANFO (ρ 0.85 kg/L, VOD 4500) ≈ 8.6 GJ/m³; emulsion (1.2 kg/L, 5600) ≈ 18.8 GJ/m³.
+ * Per-deck values are IDW-blended in 3D to give a smooth energy-distribution map.
  *
  * Extracted from Kirra's SEEModel.js (hidden analytics shader).
  */

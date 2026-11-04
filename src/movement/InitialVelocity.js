@@ -27,6 +27,7 @@
  */
 
 export var ELEM_RCUT = 14;      // m — element contribution cutoff
+// Tuned to one shot, not from a published model; Pe still has to be fitted per site.
 export var PE_SCALE = 0.35;     // Pe=1.0, b=1.5, steer 0.7 → ~17 m/s median on SWELLFACTOR
 export var MAX_LAUNCH_SPEED = 45; // m/s hard cap
 

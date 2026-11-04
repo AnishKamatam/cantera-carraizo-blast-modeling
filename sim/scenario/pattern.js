@@ -24,6 +24,9 @@ export const DEFAULT_DESIGN = Object.freeze({
     rockDensityKgM3: assumption(2650, [2400, 2800], TYPICAL),
     siteLawK: assumption(1140, [500, 1800], TYPICAL),
     siteLawB: assumption(1.6, [1.3, 1.8], TYPICAL),
+    holmbergK: assumption(700, [200, 1400], TYPICAL),
+    holmbergAlpha: assumption(0.7, [0.6, 0.9], TYPICAL),
+    holmbergBeta: assumption(1.5, [1.2, 1.9], TYPICAL),
     rockType: { value: "unconfirmed", source: "no site geology available" },
 });
 
@@ -92,9 +95,10 @@ export function scenarioFromTerrain(terrain, polygon, { name, floorZ, overrides 
         name,
         origin,
         twin: { version: twinVersion, filledFraction: block.filledFraction },
+        block: { polygon, floorZ, topoPadM: block.topoPadM, topoStride: block.topoStride },
         holes,
         decks,
-        surfaces: [block.volume, block.topo],
+        surfaces: [block.volume, block.topo, block.preblast],
         assumptions,
         measured: ["surfaces"],
     });

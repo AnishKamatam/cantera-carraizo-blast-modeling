@@ -4,6 +4,9 @@
  * Author: Brent Buffham — blastingapps.com & kirra-design.com
  * License: MIT
  *
+ * Engineering estimate: sums elemental peaks with no arrival times, so it is not the
+ * Blair & Minchinton waveform model. See docs/verification/README.md.
+ *
  * Coherent (linear) element summation with Blair's radiation patterns
  * (sfacp/sfacs), Poisson-derived Vs, and primer-aware element ordering
  * (distance from primer outward, not sequential).
@@ -141,10 +144,11 @@ export function computeScaledHeelanBlair(point, deckEntries, holeEntries, params
             sumPeak += Math.sqrt(vP * vP + vSV * vSV);
         }
 
-        // Attenuate below the toe
+        // Off by default: the cited papers have no toe term, and it silences receivers
+        // anywhere past the toe plane at any range.
         var projOnAxis = ((point.x - collarX) * haX + (point.y - collarY) * haY + (point.z - collarZ) * haZ);
         var belowToe = projOnAxis - holeLen;
-        if (belowToe > 0) {
+        if (p.belowToeDecay && belowToe > 0) {
             var decayLen = Math.max(deckLen * 0.15, holeRadius * 4.0);
             sumPeak *= Math.exp(-belowToe / decayLen);
         }

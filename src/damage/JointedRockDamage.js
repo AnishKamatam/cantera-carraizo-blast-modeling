@@ -4,6 +4,8 @@
  * Author: Brent Buffham — blastingapps.com & kirra-design.com
  * License: MIT
  *
+ * Heuristic: no published source was found for the joint failure model below.
+ *
  * 1. Compute PPV via Holmberg-Persson integration along each deck
  *    (published form: sum the geometric term, then raise to α once)
  * 2. Convert PPV to dynamic stress: σ_d = ρ_rock × Vp × PPV (unit conversion included)

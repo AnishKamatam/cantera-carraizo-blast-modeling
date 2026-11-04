@@ -21,6 +21,9 @@ describe("DEFAULT_DESIGN", () => {
     it("labels every value as an assumption, not Carraizo data", () => {
         for (const record of Object.values(DEFAULT_DESIGN)) expect(record.source).toMatch(/not Carraizo data|no site geology/);
         expect(DEFAULT_DESIGN.burdenM).toMatchObject({ value: 3.5, range: [2.5, 4.5] });
+        expect(DEFAULT_DESIGN.holmbergK.value).toBe(700);
+        expect(DEFAULT_DESIGN.holmbergAlpha.value).toBe(0.7);
+        expect(DEFAULT_DESIGN.holmbergBeta.value).toBe(1.5);
         expect(DEFAULT_DESIGN.rockType.value).toBe("unconfirmed");
     });
 });
@@ -112,7 +115,11 @@ describe("scenarioFromTerrain", () => {
         expect(s.measured).toEqual(["surfaces"]);
         expect(s.twin).toEqual({ version: "test", filledFraction: 0 });
         expect(s.assumptions.spacingM.value).toBe(4);
-        expect(s.surfaces.map((x) => x.role).sort()).toEqual(["shell", "voxelblk"]);
+        expect(s.surfaces.map((x) => x.role).sort()).toEqual(["other", "shell", "voxelblk"]);
+    });
+    it("records the cut, so it can be repeated on a newer twin", () => {
+        expect(s.block).toMatchObject({ polygon, floorZ: 100, topoPadM: 100, topoStride: 2 });
+        expect(() => validateScenario({ ...s, block: { polygon } })).toThrow(/block/);
     });
     it("voxelises the block and fires holes in the simulator", () => {
         const sim = new BlastMovementSimulator({ seed: 1, voxelRes: 2, maxVoxels: 3000 }).load(toSimData(s));

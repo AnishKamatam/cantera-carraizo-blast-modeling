@@ -20,6 +20,7 @@
  */
 
 import { decksFromEntries } from "../signal/SeedSynthesis.js";
+import { groupByDelay } from "../core/ChargeColumns.js";
 
 export { decksFromEntries };
 
@@ -38,7 +39,7 @@ export function binDecksByTime(decks, binMs) {
     for (var i = 0; i < decks.length; i++) {
         var dk = decks[i];
         var k = noBinning ? ("d" + i) : Math.floor(dk.fireMs / width);
-        if (!groups[k]) groups[k] = { binIndex: i, members: [], qSum: 0, xW: 0, yW: 0, zW: 0 };
+        if (!groups[k]) groups[k] = { binIndex: noBinning ? i : k, members: [], qSum: 0, xW: 0, yW: 0, zW: 0 };
         var g = groups[k];
         g.members.push(dk);
         g.qSum += dk.Q; g.xW += dk.x * dk.Q; g.yW += dk.y * dk.Q; g.zW += dk.z * dk.Q;
@@ -171,16 +172,18 @@ function _stamp(buf, N, samples, startIdx, amp) {
  * @param {Float32Array} [params.seedPSamples]     - two-term P wavelet
  * @param {Float32Array} [params.seedSSamples]     - two-term S wavelet
  * @param {number}  [params.ampP=1] @param {number} [params.ampS=0.7]
- * @returns {{ value, ppvMax, ppvRMS, ppvCoherent, rmsDeckCount, dominantDeck, dominantHoleIndex,
+ * @param {number|null} [params.delayWindowMs=8] - for ppvPerDelay; null = per deck
+ * @returns {{ value, ppvMax, ppvPerDelay, ppvRMS, ppvCoherent, rmsDeckCount, dominantDeck, dominantHoleIndex,
  *             dominantHoleID, dominantDistance, contribs, dominanceStrength }}
  */
 export function evaluateReceptor(point, decks, params) {
     var p = Object.assign({
         K: 1140, B: 1.6, chargeExponent: 0.5, cutoffSD: 1.0,
         distanceMode: "2D", outputMode: "A", targetPPV: 10,
-        superposeRMS: false, coherenceMs: 8, useArrivalTime: true, vpMps: 5000, contribPct: 20
+        superposeRMS: false, coherenceMs: 8, useArrivalTime: true, vpMps: 5000, contribPct: 20,
+        delayWindowMs: 8
     }, params || {});
-    var empty = { value: null, ppvMax: 0, ppvRMS: 0, ppvCoherent: null, rmsDeckCount: 0,
+    var empty = { value: null, ppvMax: 0, ppvPerDelay: 0, ppvRMS: 0, ppvCoherent: null, rmsDeckCount: 0,
                   dominantDeck: null, dominantHoleIndex: -1, dominantHoleID: null, dominantDistance: 0,
                   contribs: [], dominanceStrength: 0 };
     if (!decks || !decks.length) return empty;
@@ -198,6 +201,21 @@ export function evaluateReceptor(point, decks, params) {
     if (perDeck.length === 0) return empty;
 
     var dom = perDeck[peakIdx];
+
+    // The site law's W is charge per delay: decks firing together add their mass.
+    var ppvPerDelay = 0;
+    var delayGroups = groupByDelay(perDeck, function (e) { return e.deck.fireMs || 0; }, p.delayWindowMs);
+    for (var dg = 0; dg < delayGroups.length; dg++) {
+        var groupQ = 0;
+        for (var gi = 0; gi < delayGroups[dg].length; gi++) groupQ += delayGroups[dg][gi].deck.Q;
+        var groupD = Infinity;
+        for (var gj = 0; gj < delayGroups[dg].length; gj++) {
+            var gd = _distanceToDeck(point.x, point.y, point.z, Object.assign({}, delayGroups[dg][gj].deck, { Q: groupQ }), p.distanceMode, p);
+            if (gd < groupD) groupD = gd;
+        }
+        var gPPV = ppvFromCharge(groupD, groupQ, p);
+        if (gPPV > ppvPerDelay) ppvPerDelay = gPPV;
+    }
 
     var rms = peak, rmsDeckCount = 1;
     if (p.superposeRMS) {
@@ -249,7 +267,7 @@ export function evaluateReceptor(point, decks, params) {
     }
 
     return {
-        value: value, ppvMax: peak, ppvRMS: rms, ppvCoherent: ppvCoherent, rmsDeckCount: rmsDeckCount,
+        value: value, ppvMax: peak, ppvPerDelay: ppvPerDelay, ppvRMS: rms, ppvCoherent: ppvCoherent, rmsDeckCount: rmsDeckCount,
         dominantDeck: dom.deck, dominantHoleIndex: dom.deck.holeIndex != null ? dom.deck.holeIndex : -1,
         dominantHoleID: dom.deck.holeID != null ? dom.deck.holeID : null, dominantDistance: dom.d,
         contribs: contribs, dominanceStrength: dominanceStrength

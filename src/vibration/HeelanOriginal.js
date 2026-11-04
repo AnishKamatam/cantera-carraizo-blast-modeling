@@ -4,6 +4,9 @@
  * Author: Brent Buffham — blastingapps.com & kirra-design.com
  * License: MIT
  *
+ * Static envelope: uses no arrival times and ignores deck mass, so it reads above
+ * the time-domain model. See docs/verification/README.md.
+ *
  * Borehole pressure derived from explosive density and VOD:
  *   Pb = ρ_e × VOD² / 8
  *
@@ -170,10 +173,11 @@ export function computeHeelanOriginal(point, deckEntries, holeEntries, params) {
             sumVz += vP * cosPhi - vSV * sinPhi;
         }
 
-        // Attenuate below the toe
+        // Off by default: the cited papers have no toe term, and it silences receivers
+        // anywhere past the toe plane at any range.
         var projOnAxis = ((point.x - collarX) * haX + (point.y - collarY) * haY + (point.z - collarZ) * haZ);
         var belowToe = projOnAxis - holeLen;
-        if (belowToe > 0) {
+        if (p.belowToeDecay && belowToe > 0) {
             var decayLen = Math.max(deckLen * 0.15, holeRadius * 4.0);
             var att = Math.exp(-belowToe / decayLen);
             sumVr *= att;

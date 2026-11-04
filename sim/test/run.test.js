@@ -9,7 +9,7 @@ import { computePPVDeck } from "../../src/vibration/PPVDeck.js";
 import { evaluateReceptor, decksFromEntries } from "../../src/vibration/ReceptorPPV.js";
 import { scenarioFromKap } from "../scenario/fromKap.js";
 import { scenarioFromTerrain } from "../scenario/pattern.js";
-import { writeScenario } from "../scenario/io.js";
+import { writeScenario, toSimData } from "../scenario/io.js";
 import { abstractReceptors, runFastModels } from "../run.js";
 
 function terrainFrom(f, size = 120) {
@@ -56,7 +56,8 @@ describe("runFastModels on SWELLFACTOR", () => {
     it("reports the library's receptor evaluation", () => {
         const first = res.vibration[0];
         const direct = evaluateReceptor({ x: first.x, y: first.y, z: first.z }, decksFromEntries(swell.decks), { distanceMode: "3D", superposeRMS: true });
-        expect(first.ppvMmS).toBeCloseTo(direct.ppvMax, 6);
+        expect(first.ppvMmS).toBeCloseTo(direct.ppvPerDelay, 6);
+        expect(first.ppvMaxSingleDeckMmS).toBeCloseTo(direct.ppvMax, 6);
         expect(first.ppvRmsMmS).toBeCloseTo(direct.ppvRMS, 6);
         expect(first.dominantHoleID).toBe(direct.dominantHoleID);
     });
@@ -90,6 +91,12 @@ describe("runFastModels on SWELLFACTOR", () => {
         expect(res.flyrock.minSdob).toBeGreaterThan(0);
         expect(res.flyrock.band).toEqual(expect.any(String));
     });
+    it("names library defaults when a scenario labels no constants", () => {
+        expect(res.libraryDefaultsUsed).toEqual(expect.arrayContaining(["siteLawK", "siteLawB", "holmbergK", "holmbergAlpha", "holmbergBeta"]));
+    });
+    it("has no trench figure without a block cut from terrain", () => {
+        expect(res.throw.belowOriginalGroundFraction).toBeNull();
+    });
     it("reports an unsettled run as unsettled", async () => {
         const short = await runFastModels(swell, { seed: 7, maxVoxels: 500, overrides: { maxSimTimeS: 0.05 } });
         expect(short.throw.settled).toBe(false);
@@ -108,12 +115,12 @@ describe("runFastModels on a terrain-built scenario", () => {
         const direct = evaluateReceptor({ x: res.vibration[0].x, y: res.vibration[0].y, z: res.vibration[0].z }, decksFromEntries(s.decks), {
             K: s.assumptions.siteLawK.value, B: s.assumptions.siteLawB.value, distanceMode: "3D", superposeRMS: true,
         });
-        expect(res.vibration[0].ppvMmS).toBeCloseTo(direct.ppvMax, 6);
+        expect(res.vibration[0].ppvMmS).toBeCloseTo(direct.ppvPerDelay, 6);
     });
     it("drops the ground plane to 5 m below the lowest terrain", () => {
         expect(res.throw.groundZ).toBeCloseTo(95, 6);
     });
-    it("settles with rock on the terrain, not fallen through the block's floor", () => {
+    it("keeps rock on the terrain, not fallen through the block's floor", () => {
         // Floors in this scenario are at 100 m. The plane is at 95 m.
         expect(res.throw.lowestBlockZ).toBeGreaterThan(98);
     });
@@ -133,6 +140,44 @@ describe("runFastModels on a terrain-built scenario", () => {
     it("reports how much of the rock came to rest", () => {
         expect(res.throw.restFraction).toBeGreaterThan(0.9);
         expect(res.throw.restFraction).toBeLessThanOrEqual(1);
+    });
+    it("records the time limit and how far the throw moved in the last second", () => {
+        expect(res.throw.timeLimitS).toBeGreaterThan(12);
+        expect(res.throw.throwDriftLastSecondM).toBeGreaterThanOrEqual(0);
+        expect(res.throw.throwDriftLastSecondM).toBeLessThan(1);
+    });
+    it("reports the rock left in solid ground behind or beside the block", async () => {
+        const sim = new BlastMovementSimulator({ seed: 3, maxVoxels: 1500, groundZ: 95 }).load(toSimData(s));
+        sim.generateVoxels();
+        await sim.runAsync();
+        let inSolidGround = 0;
+        for (let i = 0; i < sim.S.N; i++) {
+            const x = sim.S.px[i] + sim.origin.x, y = sim.S.py[i] + sim.origin.y, z = sim.S.pz[i] + sim.origin.z;
+            // Outside the block and north of the crest, the original ground is at 115 m.
+            if ((x < 40 || x > 80 || y > 80) && y > 60.5 && z < 114) inSolidGround++;
+        }
+        const measured = inSolidGround / sim.S.N;
+        expect(measured).toBeGreaterThan(0);
+        expect(measured).toBeLessThan(0.1);
+        // An upper estimate: it also counts rock on the sampled slope at the crest.
+        expect(res.throw.belowOriginalGroundFraction).toBeGreaterThanOrEqual(measured);
+        expect(res.throw.belowOriginalGroundFraction).toBeLessThan(0.2);
+    }, 60000);
+    it("passes rock density to the launch model and lists it as used", async () => {
+        expect(res.assumptionsUsed.rockDensityKgM3).toEqual(s.assumptions.rockDensityKgM3);
+        const light = scenarioFromTerrain(bench, polygon, { name: "bench", floorZ: 100, twinVersion: "test", overrides: { rockDensityKgM3: 2400 } });
+        const other = await runFastModels(light, { seed: 3, maxVoxels: 1500 });
+        expect(other.throw.comShift.D).not.toBe(res.throw.comShift.D);
+    }, 60000);
+    it("passes the labelled damage constants to the damage model", async () => {
+        expect(res.assumptionsUsed.holmbergK).toEqual(s.assumptions.holmbergK);
+        const strong = scenarioFromTerrain(bench, polygon, { name: "bench", floorZ: 100, twinVersion: "test", overrides: { holmbergK: 1400 } });
+        const other = await runFastModels(strong, { seed: 3, maxVoxels: 200 });
+        expect(other.damage.peakPpvMmS).toBeCloseTo(res.damage.peakPpvMmS * 2, 3);
+    }, 60000);
+    it("says which assumptions no model in this run used", () => {
+        expect(res.assumptionsNotUsedByTheseModels).toEqual(expect.arrayContaining(["vodMs", "rockType"]));
+        expect(res.assumptionsNotUsedByTheseModels).not.toContain("rockDensityKgM3");
     });
     it("responds to a design override", async () => {
         const stronger = scenarioFromTerrain(bench, polygon, { name: "bench", floorZ: 100, twinVersion: "test", overrides: { spacingM: 3 } });

@@ -35,6 +35,15 @@ export function looksLikeInstantelCSV(text) {
     return false;
 }
 
+/** Scale from a file's stated units to mm/s. Files with no units are taken as mm/s. */
+function _toMmPerSecond(units) {
+    if (units == null || units === "") return 1;
+    var u = String(units).trim().toLowerCase();
+    if (u === "mm/s" || u === "mm/sec") return 1;
+    if (u === "in/s" || u === "in/sec" || u === "ips") return 25.4;
+    throw new Error("Monitor CSV: unknown units " + units);
+}
+
 /**
  * Parse an Instantel waveform CSV.
  * @param {string} text
@@ -71,6 +80,8 @@ export function parseInstantelCSV(text) {
     }
     if (count < 2) throw new Error("Instantel CSV: fewer than 2 valid sample rows");
     if (count < N) { tran = tran.slice(0, count); vert = vert.slice(0, count); lng = lng.slice(0, count); }
+    var toMmS = _toMmPerSecond(metadata.Units);
+    if (toMmS !== 1) for (var u = 0; u < count; u++) { tran[u] *= toMmS; vert[u] *= toMmS; lng[u] *= toMmS; }
     return { sampleRateHz: sampleRateHz, channels: { Tran: tran, Vert: vert, Long: lng }, metadata: metadata };
 }
 

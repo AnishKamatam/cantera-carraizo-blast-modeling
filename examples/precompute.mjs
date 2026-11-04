@@ -85,12 +85,12 @@ for (var iz = 0; iz < nz; iz++) {
 // Step 4) Define models
 var siteParams = { K: 1140, B: 1.6, chargeExponent: 0.5, cutoffDistance: 1.0 };
 var heelanParams = {
-    K: 1140, B: 1.6, chargeExponent: 0.5, elemsPerDeck: 12,
+    K: 1140, B: 1.6, elemsPerDeck: 12,
     pWaveVelocity: 4500, poissonRatio: 0.25, cutoffDistance: 0.5,
     qualityFactorP: 50, qualityFactorS: 30
 };
 var blairParams = {
-    K: 700, B: 1.5, chargeExponent: 0.5, elemsPerDeck: 20,
+    K: 700, B: 1.5, elemsPerDeck: 20,
     pWaveVelocity: 4500, poissonRatio: 0.25, cutoffDistance: 0.5,
     qualityFactorP: 50, qualityFactorS: 30,
     bandwidth: 10000

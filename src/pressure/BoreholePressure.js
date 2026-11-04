@@ -42,7 +42,7 @@ function distToSegment(P, A, B) {
  * @param {number} [params.attenuationExponent=2.0]
  * @param {number} [params.fallbackDensity=1.2]   - kg/L
  * @param {number} [params.fallbackVOD=5000]       - m/s
- * @param {number} [params.cutoffDistance=0.3]
+ * @param {number} [params.cutoffDistance=0] - extra minimum distance; R is never below the hole radius
  * @returns {number} Peak pressure (MPa)
  */
 export function computeBoreholePressure(point, deckEntries, params) {
@@ -50,7 +50,7 @@ export function computeBoreholePressure(point, deckEntries, params) {
         attenuationExponent: 2.0,
         fallbackDensity: 1.2,
         fallbackVOD: 5000,
-        cutoffDistance: 0.3
+        cutoffDistance: 0
     }, params || {});
 
     var alpha = p.attenuationExponent;
@@ -68,9 +68,17 @@ export function computeBoreholePressure(point, deckEntries, params) {
         // Pb = ρ_e × VOD² / 8 (Pa → MPa)
         var Pb_MPa = rho_e * effectiveVOD * effectiveVOD * 0.125 / 1e6;
 
+        // Decoupled charge: P_wall = P_e V_e / V_h (Hustrulid & Iverson 2011), with
+        // v in cm3/g and V = v - 1.1 exp(-0.473 / v). Shown there on ANFO only.
+        if (dk.chargeDiamMm > 0 && dk.chargeDiamMm < dk.holeDiamMm) {
+            var ve = 1000.0 / rho_e;
+            var vh = ve * Math.pow(dk.holeDiamMm / dk.chargeDiamMm, 2);
+            Pb_MPa *= (ve - 1.1 * Math.exp(-0.473 / ve)) / (vh - 1.1 * Math.exp(-0.473 / vh));
+        }
+
         var top = { x: dk.topX, y: dk.topY, z: dk.topZ };
         var bot = { x: dk.baseX, y: dk.baseY, z: dk.baseZ };
-        var R = Math.max(distToSegment(point, top, bot), cutoff);
+        var R = Math.max(distToSegment(point, top, bot), holeRadius, cutoff);
 
         var P_deck = Pb_MPa * Math.pow(holeRadius / R, alpha);
         if (P_deck > peakPressure) peakPressure = P_deck;
@@ -82,7 +90,7 @@ export function computeBoreholePressure(point, deckEntries, params) {
 export class BoreholePressureModel {
     constructor(params) {
         this.params = Object.assign({
-            attenuationExponent: 2.0, fallbackDensity: 1.2, fallbackVOD: 5000, cutoffDistance: 0.3
+            attenuationExponent: 2.0, fallbackDensity: 1.2, fallbackVOD: 5000, cutoffDistance: 0
         }, params || {});
     }
 

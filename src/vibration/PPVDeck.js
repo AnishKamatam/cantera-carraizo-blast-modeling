@@ -11,6 +11,8 @@
  * Extracted from Kirra's PPVDeckModel.js GLSL fragment shader.
  */
 
+import { groupByDelay } from "../core/ChargeColumns.js";
+
 /**
  * Compute per-deck PPV at an observation point.
  *
@@ -24,40 +26,33 @@ export function computePPVDeck(point, deckEntries, params) {
         K: 1140,
         B: 1.6,
         chargeExponent: 0.5,
-        cutoffDistance: 1.0
+        cutoffDistance: 1.0,
+        delayWindowMs: 8
     }, params || {});
 
     var peakPPV = 0.0;
     var K = p.K, B = p.B, ce = p.chargeExponent, cutoff = p.cutoffDistance;
+    var charged = deckEntries.filter(function (dk) { return dk.mass > 0; });
+    var groups = groupByDelay(charged, function (dk) { return dk.timingMs || 0; }, p.delayWindowMs);
 
-    for (var d = 0; d < deckEntries.length; d++) {
-        var dk = deckEntries[d];
-        if (dk.mass <= 0) continue;
-
-        var topX = dk.topX, topY = dk.topY, topZ = dk.topZ;
-        var botX = dk.baseX, botY = dk.baseY, botZ = dk.baseZ;
-        var midX = (topX + botX) * 0.5;
-        var midY = (topY + botY) * 0.5;
-        var midZ = (topZ + botZ) * 0.5;
-        var mass = dk.mass;
-        var qe = Math.pow(mass, ce);
-
-        // Evaluate at top
-        var dx = point.x - topX, dy = point.y - topY, dz = point.z - topZ;
-        var dist = Math.max(Math.sqrt(dx * dx + dy * dy + dz * dz), cutoff);
-        var ppv = K * Math.pow(dist / qe, -B);
-        if (ppv > peakPPV) peakPPV = ppv;
-
-        // Evaluate at midpoint
-        dx = point.x - midX; dy = point.y - midY; dz = point.z - midZ;
-        dist = Math.max(Math.sqrt(dx * dx + dy * dy + dz * dz), cutoff);
-        ppv = K * Math.pow(dist / qe, -B);
-        if (ppv > peakPPV) peakPPV = ppv;
-
-        // Evaluate at base
-        dx = point.x - botX; dy = point.y - botY; dz = point.z - botZ;
-        dist = Math.max(Math.sqrt(dx * dx + dy * dy + dz * dz), cutoff);
-        ppv = K * Math.pow(dist / qe, -B);
+    for (var g = 0; g < groups.length; g++) {
+        var mass = 0, nearest = Infinity;
+        for (var d = 0; d < groups[g].length; d++) {
+            var dk = groups[g][d];
+            mass += dk.mass;
+            // Nearest of the deck's top, middle and base.
+            var ends = [
+                [dk.topX, dk.topY, dk.topZ],
+                [(dk.topX + dk.baseX) * 0.5, (dk.topY + dk.baseY) * 0.5, (dk.topZ + dk.baseZ) * 0.5],
+                [dk.baseX, dk.baseY, dk.baseZ],
+            ];
+            for (var e = 0; e < 3; e++) {
+                var dx = point.x - ends[e][0], dy = point.y - ends[e][1], dz = point.z - ends[e][2];
+                var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (dist < nearest) nearest = dist;
+            }
+        }
+        var ppv = K * Math.pow(Math.max(nearest, cutoff) / Math.pow(mass, ce), -B);
         if (ppv > peakPPV) peakPPV = ppv;
     }
 

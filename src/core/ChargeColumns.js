@@ -59,3 +59,26 @@ export function inheritColumnFireTimes(entries) {
     flush();
     return entries;
 }
+
+/**
+ * Group charges that count as firing together: the site law's W is charge per
+ * delay (USBM RI 6774), not per deck. The 8 ms default window is a common
+ * convention, not taken from a cited source, so it can be changed.
+ *
+ * @param {Array} items - objects carrying a fire time
+ * @param {function(Object): number} timeOf - fire time in ms
+ * @param {number|null} windowMs - null gives one group per item
+ * @returns {Array<Array>} groups
+ */
+export function groupByDelay(items, timeOf, windowMs) {
+    if (windowMs == null) return items.map(function (item) { return [item]; });
+    var sorted = items.slice().sort(function (a, b) { return timeOf(a) - timeOf(b); });
+    var groups = [];
+    var start = -Infinity;
+    for (var i = 0; i < sorted.length; i++) {
+        var t = timeOf(sorted[i]);
+        if (t - start >= windowMs || groups.length === 0) { groups.push([]); start = t; }
+        groups[groups.length - 1].push(sorted[i]);
+    }
+    return groups;
+}
