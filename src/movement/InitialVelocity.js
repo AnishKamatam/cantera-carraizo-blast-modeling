@@ -6,7 +6,12 @@
  *
  * Two launch models:
  *
- * 1) YANG 3DMuck KINEMATIC LOADING (Yang & Kavetsky 1990; Yang 2020) — default.
+ * 1) KINEMATIC LOADING, based on Yang & Kavetsky (1990) Eq 8-14 — default.
+ *    Their b = 2 Pr - 1. Differences from the paper: charge is weighted by rho d^2 / 4
+ *    (their Pe is calibrated per site, and Eq 21 scales it with sqrt(rho)); their
+ *    confinement and inter-row delay terms (Eq 15-18) are replaced by the unsourced
+ *    relief steering and timing window below; and blocks continue into a DEM rather
+ *    than stopping on landing. See docs/verification/README.md.
  *    Each explosive deck is split into charge elements; a block receives
  *      |ΔV| = Pe · ρe · d² · Δl / (4 · r^b)
  *    from every element of every hole firing within the timing window of the
@@ -28,12 +33,12 @@
 
 export var ELEM_RCUT = 14;      // m — element contribution cutoff
 // Tuned to one shot, not from a published model; Pe still has to be fitted per site.
-export var PE_SCALE = 0.35;     // Pe=1.0, b=1.5, steer 0.7 → ~17 m/s median on SWELLFACTOR
+export var PE_SCALE = 0.35;     // Pe=1.0, b=1.5 → ~17 m/s median on SWELLFACTOR
 export var MAX_LAUNCH_SPEED = 45; // m/s hard cap
 
 export var YANG_DEFAULTS = {
     Pe: 1.0,            // explosive strength parameter (scales all velocities)
-    bExp: 1.5,          // attenuation exponent (energy decays 1/r^b)
+    bExp: 1.5,          // |dV| falls as 1/r^b; b = 2 Pr - 1 (their calibrated Pr = 1.35 gives 1.7)
     cSteer: 0.85,       // relief steering + confined-momentum recovery
     timingWindowMs: 40, // charges cooperate within this window of the block's motion time
     fallbackVelocity: 5,// m/s when no charge element reaches the block
@@ -198,7 +203,7 @@ export function nearestHole(holes, hb, wx, wy, wz) {
 }
 
 /**
- * Yang 3DMuck kinematic launch velocities.
+ * Kinematic launch velocities based on Yang & Kavetsky (1990) Eq 8-14.
  *
  * @param {Object} S      - particle state: N, ox,oy,oz (local in-situ), nearH, ivx,ivy,ivz, at
  * @param {{x,y,z}} origin- local-frame origin (world = local + origin)

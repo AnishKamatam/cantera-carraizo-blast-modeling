@@ -13,12 +13,14 @@ Corrections from a research audit; see `docs/verification/README.md`. **Changes 
 - Scaled Heelan, Scaled Heelan Blair, Heelan Original: removed the unsourced decay below the toe plane, which read about 1/10,000 of the site law on lower benches at any range. `belowToeDecay: true` restores it.
 - Blair-Minchinton model and worker: now use the charge-conserving `blairIncrement`, as the fast models already did, and scan every element for the earliest arrival.
 - `BlairHeavyWorker`: no longer returns 0 beyond an undocumented 100 m default.
-- `computeBoreholePressure`: R is never below the hole radius, so the wall reads Pb (it was capped at under 4% of Pb), and decoupled charges use the Hustrulid & Iverson (2011) correction.
+- `computeBoreholePressure`: R is never below the hole radius, so the wall reads Pb (it was capped at under 4% of Pb), and decoupled charges use the Iverson & Hustrulid (2011) correction.
 - `computePowderFactor`: uses a true capsule around the column. It is a local charge concentration, not a blast powder factor.
 - `generateFlyrockShroud` and `FlyrockWorker`: the envelope now reaches clearance = FoS × range. A dome labelled FoS 2 was drawn at half that clearance.
 - `swellEmergent`: in-situ volume is now one voxel per block, not 0.296 of one, which read about 3.4× high.
 - `parseInstantelCSV`: reads the file's `Units`, converts in/s to mm/s, and rejects unknown units.
 - `binDecksByTime`: `tCentreMs` is the real bin time, not based on the deck index.
+- `sdobRiskBand`: thresholds now follow the Chiappetta chart in McKenzie (2018): 0.6, 0.9, 1.4 and 1.8. They were 0.8, 1.2, 1.8 and 2.5, so many holes change band.
+- Docs: removed the untraceable "Yang 2020 3DMuck" citation, and described the launch model's differences from Yang & Kavetsky (1990). No numbers change.
 - Docs: removed the "calibrated" claim for throw defaults, and fixed examples that passed `chargeExponent: 0.5` to the scaled models.
 - `BlastMovementSimulator` takes an optional `groundZ` (world Z), so blocks can fall below the base of the blast volume onto a lower bench. Without it, results are unchanged.
 

@@ -16,6 +16,9 @@ Quarry-Videos/
 sim/data/
 sim/out/
 
+# Research papers: copyrighted, so read locally and cited in docs/references.bib.
+Research-Papers/
+
 # Site network plan: holds licensed Google satellite imagery and the site layout.
 quarry-camera-network-standalone.html
 

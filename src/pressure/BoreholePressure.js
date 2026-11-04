@@ -68,7 +68,7 @@ export function computeBoreholePressure(point, deckEntries, params) {
         // Pb = ρ_e × VOD² / 8 (Pa → MPa)
         var Pb_MPa = rho_e * effectiveVOD * effectiveVOD * 0.125 / 1e6;
 
-        // Decoupled charge: P_wall = P_e V_e / V_h (Hustrulid & Iverson 2011), with
+        // Decoupled charge: P_wall = P_e V_e / V_h (Iverson & Hustrulid 2011), with
         // v in cm3/g and V = v - 1.1 exp(-0.473 / v). Shown there on ANFO only.
         if (dk.chargeDiamMm > 0 && dk.chargeDiamMm < dk.holeDiamMm) {
             var ve = 1000.0 / rho_e;

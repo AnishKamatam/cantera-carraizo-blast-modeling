@@ -35,7 +35,7 @@ describe("borehole pressure", () => {
         const got = computeBoreholePressure({ x: 0.24, y: 0, z: -8 }, [deck(anfo)], {});
         expect(got).toBeCloseTo(1964.6 / 100, 1);
     });
-    it("reproduces Hustrulid & Iverson's decoupled case, 598 MPa", () => {
+    it("reproduces Iverson & Hustrulid's decoupled case, 598 MPa", () => {
         const d = deck({ ...anfo, deckType: "DECOUPLED", chargeDiamMm: 34 });
         expect(computeBoreholePressure({ x: 0.024, y: 0, z: -8 }, [d], {})).toBeCloseTo(598.8, 0);
     });

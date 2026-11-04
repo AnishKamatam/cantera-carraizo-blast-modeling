@@ -1,6 +1,7 @@
 {
   "name": "blast-physics-js",
   "version": "0.3.3",
+  "private": true,
   "description": "JavaScript blast physics engine for mining — vibration, damage, detonation, flyrock, frequency analysis, ripple tank, KAP import and voxel blast movement (muckpile) models",
   "author": {
     "name": "Brent Buffham",

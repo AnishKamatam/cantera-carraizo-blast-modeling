@@ -39,7 +39,7 @@ Any of these would make the work a failure even if the code runs:
 - **No site records:** the quarry keeps no blast records, and there is no survey. The owner cannot document a blast by drone.
 - **Future verification:** 3 fixed cameras that the owner says all see the entire quarry with overlap. Their footage is not available yet.
 - **Compute:** Modal GPUs, with credentials in `.env`. The Mac has about 8.5 GB of free disk and no NVIDIA GPU, so large data stays on the Modal volume `carraizo-twin`.
-- **Twin:** `twin/modal_twin.py`. The terrain stage is expected to write local-metre DSM and DTM grids, a mesh and an orthomosaic under `/full/terrain/` on the volume. Coordinates are local east-north-up, origin 18.332, -66.019. Scale comes from drone telemetry, and a satellite check is still outstanding.
+- **Twin:** `twin/`, run through `twin/modal_twin.py`. Stages are frame sampling, telemetry georeferencing, sparse mapping, dense stereo, and terrain. The terrain stage is expected to write local-metre DSM and DTM grids, a mesh and an orthomosaic under `/full/terrain/` on the volume. Coordinates are local east-north-up, origin 18.332, -66.019. Scale comes from drone telemetry, and a satellite check is still outstanding.
 - **Existing code:** `src/movement/` has a Yang kinematic launch and sphere DEM, defaulting to 30,000 blocks. It collides with a flat ground plane at the bottom of the blast block, which stops rock from falling to a lower bench.
 - **Benchmark:** `examples/SWELLFACTOR.kap` has 531 holes, a pre-blast volume, a shell and a surveyed post-blast muckpile. It is a real shot from a different site.
 

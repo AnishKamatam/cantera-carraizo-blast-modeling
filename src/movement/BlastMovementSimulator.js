@@ -8,7 +8,7 @@
  *   1. load()             HoleEntry + DeckEntry + surfaces (e.g. from parseKAP)
  *   2. generateVoxels()   voxelise PREBLAST_VOLUME / VOXEL-BLK* meshes (or hole bbox),
  *                         assign nearest hole, block radii, shell collider (+ lid exclusion)
- *   3. assignVelocities() Yang 3DMuck kinematic loading (default) or energy-partition
+ *   3. assignVelocities() kinematic loading after Yang & Kavetsky 1990 (default) or energy-partition
  *   4. step(dt) / run()   fixed 5 ms sub-steps until every fired block rests
  *   5. results()          displacement vectors, CoM shift, swell, muckpile heightfield
  *   6. calibrate()        secant-fit Pe so the simulated CoM throw matches the survey

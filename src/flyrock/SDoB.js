@@ -15,8 +15,11 @@
  *                           point to the charge column segment, IDW-blended
  *                           across nearby holes (Kirra SDoBModel shader).
  *
- * Risk bands (McKenzie): <0.8 very high · 0.8–1.2 high · 1.2–1.8 moderate ·
- * 1.8–2.5 low · >2.5 very low / over-confined.
+ * Risk bands follow the Chiappetta chart reproduced by McKenzie (2018), m/kg^(1/3):
+ * <0.6 crater · 0.6–0.9 ejection with fallback · 0.9–1.4 mounding, controlled ·
+ * 1.4–1.8 very controlled · >1.8 minimal surface effects. Some chart labels are
+ * partly covered in that copy, so the 0.6–0.9 and 1.4 edges are read from context.
+ * Bands describe surface behaviour, not a safe distance.
  */
 
 /**
@@ -60,11 +63,11 @@ export function computeHoleSDoB(params) {
  * @returns {{ key, label, minSDoB, maxSDoB }}
  */
 export function sdobRiskBand(sDoB) {
-    if (sDoB < 0.8) return { key: "veryHigh", label: "Very high — crater formation likely", minSDoB: 0, maxSDoB: 0.8 };
-    if (sDoB < 1.2) return { key: "high", label: "High — review stemming", minSDoB: 0.8, maxSDoB: 1.2 };
-    if (sDoB < 1.8) return { key: "moderate", label: "Moderate — normal blast conditions", minSDoB: 1.2, maxSDoB: 1.8 };
-    if (sDoB < 2.5) return { key: "low", label: "Low — well confined", minSDoB: 1.8, maxSDoB: 2.5 };
-    return { key: "veryLow", label: "Very low — over-confined, may affect fragmentation", minSDoB: 2.5, maxSDoB: Infinity };
+    if (sDoB < 0.6) return { key: "veryHigh", label: "Very high — crater, uncontrolled energy, violent flyrock", minSDoB: 0, maxSDoB: 0.6 };
+    if (sDoB < 0.9) return { key: "high", label: "High — ejection with some fallback", minSDoB: 0.6, maxSDoB: 0.9 };
+    if (sDoB < 1.4) return { key: "moderate", label: "Moderate — mounding, controlled energy", minSDoB: 0.9, maxSDoB: 1.4 };
+    if (sDoB < 1.8) return { key: "low", label: "Low — very controlled energy", minSDoB: 1.4, maxSDoB: 1.8 };
+    return { key: "veryLow", label: "Very low — minimal surface effects", minSDoB: 1.8, maxSDoB: Infinity };
 }
 
 function _distToSegment(px, py, pz, ax, ay, az, bx, by, bz) {

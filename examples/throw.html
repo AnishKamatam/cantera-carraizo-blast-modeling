@@ -86,7 +86,7 @@
 		<h3>Surfaces</h3>
 		<div class="stat" id="stat-surf">—</div>
 		<hr>
-		<div class="stat">Yang 3DMuck kinematic launch + sphere DEM transport. Drop any Kirra .kap on the viewport.</div>
+		<div class="stat">Kinematic launch after Yang &amp; Kavetsky (1990) + sphere DEM transport. Drop any Kirra .kap on the viewport.</div>
 	</div>
 </div>
 
@@ -371,7 +371,7 @@ fRock.add(P, "rockType", Object.keys(ROCK_TYPES)).name("Rock type").onChange(fun
 fRock.add(P, "rockDensity", 1600, 3600, 50).name("Density (kg/bcm)").onChange(function () { P.rockType = "Custom"; live(); });
 fRock.add(P, "bulkT", 0.1, 3, 0.1).name("Bulk time (s)").onChange(live);
 fRock.add(P, "maxSwell", 1.0, 2.0, 0.05).name("Max swell (×)").onChange(live);
-var fKin = gui.addFolder("Kinematic Loading (3DMuck)");
+var fKin = gui.addFolder("Kinematic Loading");
 fKin.add(P, "Pe", 0.2, 3, 0.05).name("Pe · expl. strength").onChange(live);
 fKin.add(P, "bExp", 1.0, 2.5, 0.05).name("b · attenuation").onChange(live);
 fKin.add(P, "cSteer", 0, 1.5, 0.05).name("c · relief steer").onChange(live);

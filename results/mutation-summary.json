@@ -1,0 +1,53 @@
+{
+ "method": "scripts/mutation-check.py, seed 7, up to 12 sampled breaks per file",
+ "before_audit_fixes": {
+  "caught": 263,
+  "total": 592
+ },
+ "after": {
+  "caught": 281,
+  "total": 595
+ },
+ "by_folder": {
+  "core": {
+   "caught": 36,
+   "total": 83
+  },
+  "damage": {
+   "caught": 4,
+   "total": 24
+  },
+  "detonation": {
+   "caught": 12,
+   "total": 23
+  },
+  "flyrock": {
+   "caught": 29,
+   "total": 48
+  },
+  "io": {
+   "caught": 21,
+   "total": 34
+  },
+  "movement": {
+   "caught": 59,
+   "total": 108
+  },
+  "pressure": {
+   "caught": 14,
+   "total": 36
+  },
+  "signal": {
+   "caught": 41,
+   "total": 96
+  },
+  "vibration": {
+   "caught": 54,
+   "total": 120
+  },
+  "workers": {
+   "caught": 11,
+   "total": 23
+  }
+ }
+}

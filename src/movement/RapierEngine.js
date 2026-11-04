@@ -4,7 +4,7 @@
  * Author: Brent Buffham — blastingapps.com & kirra-design.com
  * License: MIT
  *
- * Division of labour (Yang 2020): 3DMuck is a LAUNCH model — charge elements
+ * Division of labour: the kinematic model is a LAUNCH model — charge elements
  * give each block its initial velocity (InitialVelocity.js). Rapier replaces
  * the sphere-DEM transport with convex-hull rigid bodies so swell EMERGES
  * from packing rather than being prescribed.

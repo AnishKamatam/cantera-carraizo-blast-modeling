@@ -60,7 +60,7 @@ npm install blast-physics-js
 | **Pressure / energy** | Borehole Pressure, Powder Factor, Specific Explosive Energy | MPa, kg/m³, GJ/m³ |
 | **Detonation** | Multi-primer front propagation, Em computation | ms, kg^A |
 | **Flyrock** | Richards & Moore, Lundborg, McKenzie (SDoB), Roth (Gurney), volumetric SDoB grid, ballistics (range / apex / flight time / drag) | metres, m/s |
-| **Movement** | Voxel blast throw: Yang 3DMuck kinematic launch + sphere DEM transport (optional Rapier3D adapter), survey calibration | displacement vectors, swell, muckpile surface |
+| **Movement** | Voxel blast throw: kinematic launch after Yang & Kavetsky (1990) + sphere DEM transport (optional Rapier3D adapter), survey calibration | displacement vectors, swell, muckpile surface |
 | **IO** | Kirra `.kap` archives (holes, charging, primers, surfaces), Instantel / Texcel monitor CSVs | HoleEntry / DeckEntry / surfaces |
 
 ## Demos
@@ -77,7 +77,7 @@ That opens http://localhost:5175 with three demos, all driven by the bundled `ex
 | Page | What it shows |
 |------|---------------|
 | `analysis.html` | Every live model — vibration, damage, pressure, SDoB — evaluated on the KAP's holes, with draggable cross-sections |
-| `throw.html` | **Blast throw / muckpile simulator** — loads `examples/SWELLFACTOR.kap` (531 holes, PREBLAST_VOLUME, SHELL, POSTBLAST_MUCKPILE), voxelises the blast volume, launches blocks with Yang 3DMuck kinematics, runs the sphere DEM, and back-calculates Pe from the surveyed muckpile. Drop any Kirra `.kap` on it. |
+| `throw.html` | **Blast throw / muckpile simulator** — loads `examples/SWELLFACTOR.kap` (531 holes, PREBLAST_VOLUME, SHELL, POSTBLAST_MUCKPILE), voxelises the blast volume, launches blocks with kinematic loading kinematics, runs the sphere DEM, and back-calculates Pe from the surveyed muckpile. Drop any Kirra `.kap` on it. |
 | `ripple.html` | **Ripple tank** wave field with wave-front rings, IDI stems, impulse-train FFT and a click-to-place monitor with L/T/V forward-array synthesis and PoE readout |
 
 The throw demo defaults are the "throw_4" settings, tuned on that one shot and not transferable to another site. They reach about 44% of its surveyed throw until Pe is fitted (see [verification](verification/README.md)) (1.5 m voxels, Pe 1.0, b 1.5, relief steer 0.85, 40 ms window, restitution 0.1, friction 0.5, swell 1.4, 35 % size scatter).
@@ -352,7 +352,7 @@ Physics-based blast throw / muckpile prediction — an open-source approach to t
 **Pipeline** (`BlastMovementSimulator`):
 1. `parseKAP` — holes, charging (mass per deck from geometry, primer-resolved fire times), and surfaces by role: `PREBLAST_VOLUME` / `VOXEL-BLK*` (material to blast), `SHELL` / `*REMAIN*` / `*MINUS*` (trusted confinement), `PREBLAST_SURFACE` / `*TOPO*` (fallback collision with lid/face exclusion), `POSTBLAST*` (survey reference)
 2. Voxelise the blast volume by column ray-casting (auto-coarsened to the block budget); fragmentation-shaped block size scatter
-3. **Kinematic loading — Yang 3DMuck** (Yang & Kavetsky 1990; Yang 2020): every explosive deck is split into charge elements; a block receives `|ΔV| = Pe·ρe·d²·Δl / (4·r^b)` from each element of every hole firing within the timing window of its dominant hole, summed vectorially. Confined momentum cancelled between cooperating charges is recovered and steered down the timing gradient (least-squares fit of fire time over neighbours → direction of relief). An energy-partition depth-zone model (`v0 = √(2ηE·PF/ρ)`) is available as an alternative.
+3. **Kinematic loading, after Yang & Kavetsky (1990) Eq 8–14**, with unsourced relief steering in place of their confinement and delay terms: every explosive deck is split into charge elements; a block receives `|ΔV| = Pe·ρe·d²·Δl / (4·r^b)` from each element of every hole firing within the timing window of its dominant hole, summed vectorially. Confined momentum cancelled between cooperating charges is recovered and steered down the timing gradient (least-squares fit of fire time over neighbours → direction of relief). An energy-partition depth-zone model (`v0 = √(2ηE·PF/ρ)`) is available as an alternative.
 4. **Sphere DEM transport**: fixed 5 ms sub-steps, gravity, spatial-hash sphere contacts (mass ∝ ρr³), static shell collision, ground plane, in-flight bulking to the target swell factor, rest detection with re-activation on impact
 5. Results: displacement vectors (in-situ → final, world coordinates), volume-weighted centre-of-mass shift and bearing, achieved swell (prescribed and emergent), and a triangulated muckpile heightfield surface
 6. **Calibration**: `surveyTargets` rasterises PREBLAST_VOLUME / SHELL / POSTBLAST onto 2 m columns (swell = muck volume ÷ in-situ, CoM throw); `calibrate()` secant-fits Pe with three coarse headless runs. On SWELLFACTOR.kap: survey swell 1.43×, throw 34 m @ 130° → fitted Pe ≈ 1.5

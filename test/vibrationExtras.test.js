@@ -219,7 +219,7 @@ describe("SDoB / SEE", () => {
         expect(r.contributingLength).toBeCloseTo(1.15, 6);
         expect(r.contributingMass).toBeCloseTo(14.34, 1);
         expect(r.sDoB).toBeCloseTo(1.059, 2);
-        expect(sdobRiskBand(r.sDoB).key).toBe("high");
+        expect(sdobRiskBand(r.sDoB).key).toBe("moderate"); // chart band 0.92-1.40
         expect(sdobRiskBand(0.5).key).toBe("veryHigh");
         expect(sdobRiskBand(3).key).toBe("veryLow");
     });
