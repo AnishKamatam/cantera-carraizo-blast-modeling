@@ -31,6 +31,8 @@ function planeSurface(name, role, x0, x1, y0, y1, z) {
     const idx = new Uint32Array([0, 1, 2, 0, 2, 3]);
     return { id: name, name, role, pos, idx, np: 4, nt: 2 };
 }
+// Centre-of-mass throw from the default ground plane, recorded before groundZ was added.
+const PINNED_COM_D = 1.8129896701117334;
 // Bench: block 0..24 x 0..12 x z 0..10 sits on a floor at z=0; free face at y=0 (south).
 // Rows at y = 3, 7, 11 firing 0 / 42 / 84 ms → throw toward −Y.
 function benchPattern() {
@@ -240,6 +242,31 @@ describe("BlastMovementSimulator", () => {
         // fired blocks are resting or the run timed out
         const restFrac = res.stats.resting / N;
         expect(restFrac).toBeGreaterThan(0.5);
+    });
+
+    it("keeps the default ground plane when groundZ is not set", () => {
+        const sim = new BlastMovementSimulator({ voxelRes: 2, maxVoxels: 2000, seed: 42, maxSwell: 1.4 });
+        sim.load(benchPattern());
+        sim.generateVoxels();
+        // At the base of the lowest block, as before the option existed.
+        let lowest = Infinity;
+        for (let i = 0; i < sim.S.N; i++) lowest = Math.min(lowest, sim.S.oz[i]);
+        expect(sim.S.groundZ).toBeCloseTo(lowest - sim.S.radius, 6);
+        sim.run({ maxTime: 20 });
+        expect(sim.results().comShift.D).toBeCloseTo(PINNED_COM_D, 6);
+    });
+
+    it("groundZ lets blocks settle below the blast block's base", () => {
+        const data = benchPattern();
+        data.surfaces = data.surfaces.filter((x) => x.role === "voxelblk");
+        const sim = new BlastMovementSimulator({ voxelRes: 2, maxVoxels: 2000, seed: 42, groundZ: -30 });
+        sim.load(data);
+        sim.generateVoxels();
+        expect(sim.S.groundZ + sim.origin.z).toBeCloseTo(-30 - sim.S.radius, 6);
+        sim.run({ maxTime: 20 });
+        let lowest = Infinity;
+        for (let i = 0; i < sim.S.N; i++) lowest = Math.min(lowest, sim.S.pz[i] + sim.origin.z);
+        expect(lowest).toBeLessThan(-5);
     });
 
     it("reset restores in-situ; energy model runs; async run works", async () => {

@@ -5,6 +5,10 @@ All notable changes to blast-physics-js. The project follows
 change published numbers. Entries marked **changes numbers** move results you
 may already have saved, so read them before comparing old output with new.
 
+## [Unreleased]
+
+- `BlastMovementSimulator` takes an optional `groundZ` (world Z), so blocks can fall below the base of the blast volume onto a lower bench. Without it, results are unchanged.
+
 ## [0.3.3] — 2026-10-18
 
 Packaging and documentation only. No model or API changes.
