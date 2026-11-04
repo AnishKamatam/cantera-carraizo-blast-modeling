@@ -4,6 +4,19 @@ dist-pages/
 .DS_Store
 *.local
 
+# Credentials (Modal tokens). This repo is public.
+.env
+
+# Raw drone footage: several GB each, and it shows the site and people on it.
+Quarry-Videos/
+
+# Terrain, scenarios and simulation results are generated and can be large.
+sim/data/
+sim/out/
+
+# Site network plan: holds licensed Google satellite imagery and the site layout.
+quarry-camera-network-standalone.html
+
 # AI planning / commentary notes stay local. This repo is public and MIT, and
 # these reference private Kirra work and internal reports by name.
 aiPlans/
