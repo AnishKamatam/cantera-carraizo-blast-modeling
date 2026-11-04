@@ -1,0 +1,41 @@
+{
+  "_note": "Usable footage, in whole seconds from the start of each video. Set from per-second telemetry and metrics plus 10 s contact sheets. Digital zoom is excluded because it changes the focal length.",
+  "videos": {
+    "DJI_0002": {
+      "pilot": [[20, 174], [176, 535]],
+      "full": [[20, 174], [176, 535]],
+      "excluded": {
+        "0-19": "takeoff, railing in frame",
+        "175": "digital zoom",
+        "536-768": "low passes over moving machinery and people, then landing"
+      }
+    },
+    "DJI_0003": {
+      "pilot": [],
+      "full": [[25, 225]],
+      "excluded": {
+        "0-24": "takeoff, mostly distant landscape and sky",
+        "226-345": "ground-level, then the drone handled in a truck; shows a person"
+      }
+    },
+    "DJI_0004": {
+      "pilot": [[409, 700]],
+      "full": [[60, 158], [200, 219], [280, 339], [350, 394], [409, 700]],
+      "excluded": {
+        "0-59": "soil close-up and sky",
+        "159-199": "vegetation and reservoir",
+        "220-279": "vegetation and reservoir",
+        "340-349": "vegetation",
+        "395-408": "digital zoom",
+        "701-893": "digital zoom to 833, then vegetation and landing"
+      }
+    },
+    "DJI_0023": {
+      "pilot": [],
+      "full": [],
+      "excluded": {
+        "0-155": "rim, nearby homes and a person; adds little pit coverage"
+      }
+    }
+  }
+}

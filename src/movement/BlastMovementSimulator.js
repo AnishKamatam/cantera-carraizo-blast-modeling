@@ -37,7 +37,8 @@ export var SIM_DEFAULTS = {
     fireTimeSource: "deck", // 'deck' (primer-resolved) | 'hole' (surface time)
     seed: null,             // PRNG seed (null = Math.random)
     settleAfterLastFireS: 0.5,
-    maxSimTimeS: null       // default lastFire + 12 s
+    maxSimTimeS: null,      // default lastFire + 12 s
+    groundZ: null           // world Z of the ground plane; null = base of the lowest block
 };
 
 export class BlastMovementSimulator {
@@ -141,7 +142,7 @@ export class BlastMovementSimulator {
             S.at[k] = nh[0] >= 0 ? this.holes[nh[0]].fireT : 0;
             S.state[k] = ST_INACTIVE;
         }
-        S.groundZ = (pzMin === Infinity ? -10 : pzMin) - S.radius;
+        S.groundZ = (o.groundZ != null ? o.groundZ - this.origin.z : (pzMin === Infinity ? -10 : pzMin)) - S.radius;
         this.S = S;
         this.H = new SpatialHash(N, vres * 1.5);
         this.assignVelocities();
