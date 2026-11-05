@@ -19,7 +19,7 @@ export function insidePolygon(x, y, polygon) {
     return inside;
 }
 
-function surface(id, role, positions, triangles) {
+export function surface(id, role, positions, triangles) {
     return {
         id, name: id, role,
         pos: new Float64Array(positions),
@@ -45,7 +45,12 @@ function selectCells(dtm, polygon) {
     return cells;
 }
 
-function buildVolume(dtm, cells, floorZ) {
+/**
+ * Closed mesh over grid cells: top follows each cell's z, and the bottom is floorZ,
+ * or, when floorZ is null, each cell's own floor. A corner's bottom is then the mean
+ * floor of the cells touching it, so a corner's bottom stays under its top.
+ */
+export function buildVolume(dtm, cells, floorZ) {
     const key = (i, j) => j * (dtm.cols + 1) + i;
     const cellSet = new Set(cells.map((c) => key(c.i, c.j)));
 
@@ -54,8 +59,9 @@ function buildVolume(dtm, cells, floorZ) {
     for (const c of cells) {
         for (const [ci, cj] of [[c.i, c.j], [c.i + 1, c.j], [c.i, c.j + 1], [c.i + 1, c.j + 1]]) {
             const k = key(ci, cj);
-            const corner = corners.get(k) || { ci, cj, sum: 0, n: 0, index: corners.size };
+            const corner = corners.get(k) || { ci, cj, sum: 0, floorSum: 0, n: 0, index: corners.size };
             corner.sum += c.z;
+            corner.floorSum += floorZ === null ? c.floor : 0;
             corner.n++;
             corners.set(k, corner);
         }
@@ -63,8 +69,10 @@ function buildVolume(dtm, cells, floorZ) {
     const positions = new Array(corners.size * 6);
     for (const corner of corners.values()) {
         const x = dtm.x0 + corner.ci * dtm.cell, y = dtm.y0 + corner.cj * dtm.cell;
-        positions.splice(corner.index * 3, 3, x, y, corner.sum / corner.n);
-        positions.splice((corners.size + corner.index) * 3, 3, x, y, floorZ);
+        const at = corner.index * 3, under = (corners.size + corner.index) * 3;
+        positions[at] = x; positions[at + 1] = y; positions[at + 2] = corner.sum / corner.n;
+        positions[under] = x; positions[under + 1] = y;
+        positions[under + 2] = floorZ === null ? corner.floorSum / corner.n : floorZ;
     }
     const top = (i, j) => corners.get(key(i, j)).index;
     const bottom = (i, j) => corners.size + top(i, j);
@@ -91,7 +99,7 @@ function buildVolume(dtm, cells, floorZ) {
     return surface("block-volume", "voxelblk", positions, triangles);
 }
 
-function enclosedVolume({ pos, idx }) {
+export function enclosedVolume({ pos, idx }) {
     let sum = 0;
     for (let t = 0; t < idx.length; t += 3) {
         const a = idx[t] * 3, b = idx[t + 1] * 3, c = idx[t + 2] * 3;
@@ -106,9 +114,10 @@ function enclosedVolume({ pos, idx }) {
  * The ground after the blast: terrain outside the block and floorZ inside it, so
  * rock can land on the floor and is confined by the back wall. Walls are pushed one
  * sampling step outward, so they can never cut into the block's edge, where rock
- * would start behind them and be pushed down through the floor.
+ * would start behind them and be pushed down through the floor. A floorAt(x, y, cell)
+ * function, when given, supplies the floor instead: null where there is none.
  */
-function buildTopo(dtm, polygon, padM, stride, floorZ, id = "terrain-shell", role = "shell") {
+export function buildTopo(dtm, polygon, padM, stride, floorZ, id = "terrain-shell", role = "shell", floorAt = null) {
     const xs = polygon.map((p) => p[0]), ys = polygon.map((p) => p[1]);
     const cell = dtm.cell * stride;
     const firstI = Math.max(0, Math.ceil((Math.min(...xs) - padM - dtm.x0) / cell));
@@ -128,7 +137,9 @@ function buildTopo(dtm, polygon, padM, stride, floorZ, id = "terrain-shell", rol
                 }
             }
             const ground = heightAt(dtm, x, y);
-            z[j * G.nx + i] = nearBlock && floorZ !== null ? floorZ : Number.isNaN(ground) ? -1e9 : ground;
+            const floor = floorAt ? floorAt(x, y, cell) : null;
+            if (floor !== null) z[j * G.nx + i] = Number.isNaN(ground) ? floor : Math.min(floor, ground);
+            else z[j * G.nx + i] = nearBlock && floorZ !== null ? floorZ : Number.isNaN(ground) ? -1e9 : ground;
         }
     }
     const mesh = surfaceFromHeightfield(z, G, { id, name: id });

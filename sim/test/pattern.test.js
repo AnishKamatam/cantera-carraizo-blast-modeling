@@ -83,6 +83,27 @@ describe("generatePattern", () => {
             expect(d.timingMs).toBe(holes[k].holeTime);
         });
     });
+    it("fires rows away from a free face to the east", () => {
+        const { holes } = generatePattern(block, terrain, {}, { freeFace: "E" });
+        const first = holes.filter((h) => h.holeTime === 0);
+        expect(first.length).toBe(1);
+        const eastmost = Math.max(...holes.map((h) => h.collarX));
+        expect(first[0].collarX).toBeCloseTo(eastmost, 6);
+        const xs = [...new Set(holes.map((h) => h.collarX))].sort((a, b) => b - a);
+        expect(xs[0] - xs[1]).toBeCloseTo(3.5, 5); // burden runs away from the face
+        const earliest = (x) => Math.min(...holes.filter((h) => h.collarX === x).map((h) => h.holeTime));
+        expect(earliest(xs[1])).toBe(42);
+        expect(earliest(xs[2])).toBe(84);
+    });
+    it.each([["N", 0, 1], ["S", 0, -1], ["W", -1, 0]])("fires the row nearest a free face to the %s first", (face, ex, ey) => {
+        const { holes } = generatePattern(block, terrain, {}, { freeFace: face });
+        const toward = (h) => h.collarX * ex + h.collarY * ey;
+        const first = holes.find((h) => h.holeTime === 0);
+        expect(toward(first)).toBeCloseTo(Math.max(...holes.map(toward)), 6);
+    });
+    it("rejects an unknown free face", () => {
+        expect(() => generatePattern(block, terrain, {}, { freeFace: "NE" })).toThrow(/freeFace/);
+    });
     it("errors when no holes fit", () => {
         const tiny = { ...block, polygon: [[30, 30], [30.5, 30], [30.5, 30.5], [30, 30.5]] };
         expect(() => generatePattern(tiny, terrain)).toThrow(/no holes/);
@@ -120,6 +141,39 @@ describe("scenarioFromTerrain", () => {
     it("records the cut, so it can be repeated on a newer twin", () => {
         expect(s.block).toMatchObject({ polygon, floorZ: 100, topoPadM: 100, topoStride: 2 });
         expect(() => validateScenario({ ...s, block: { polygon } })).toThrow(/block/);
+    });
+    it("records the free face as an assumption", () => {
+        const east = scenarioFromTerrain(terrain, polygon, { name: "e", floorZ: 100, twinVersion: "t", freeFace: "E" });
+        expect(east.block.freeFace).toBe("E");
+        expect(east.assumptions.freeFace.value).toBe("E");
+        expect(east.assumptions.freeFace.source).toMatch(/terrain/);
+    });
+    it("adds no free face or hole polygon keys when the caller set neither", () => {
+        expect(s.block).not.toHaveProperty("freeFace");
+        expect(s.block).not.toHaveProperty("holePolygon");
+        expect(s.assumptions).not.toHaveProperty("freeFace");
+    });
+    it("still fires a default scenario from the default face", () => {
+        const south = scenarioFromTerrain(terrain, polygon, { name: "s", floorZ: 100, twinVersion: "t", freeFace: "S" });
+        expect(s.holes).toEqual(south.holes);
+    });
+    it("says a free face came from the caller, not that it was read from anything", () => {
+        const east = scenarioFromTerrain(terrain, polygon, { name: "e", floorZ: 100, twinVersion: "t", freeFace: "E" });
+        expect(east.assumptions.freeFace.source).toMatch(/caller/);
+        expect(east.assumptions.freeFace.source).not.toMatch(/^read from/);
+        expect(east.block).not.toHaveProperty("holePolygon");
+    });
+    it("can drill only part of the block, leaving the slope to the toe undrilled", () => {
+        const drilled = [[20, 20], [40, 20], [40, 50], [20, 50]];
+        const s2 = scenarioFromTerrain(terrain, polygon, { name: "h", floorZ: 100, twinVersion: "t", freeFace: "E", holePolygon: drilled });
+        expect(s2.holes.length).toBeGreaterThan(0);
+        expect(Math.max(...s2.holes.map((h) => h.collarX))).toBeLessThan(40);
+        expect(s2.block.polygon).toEqual(polygon);
+        expect(s2.block.holePolygon).toEqual(drilled);
+        const volume = s2.surfaces.find((x) => x.role === "voxelblk");
+        let maxX = -Infinity;
+        for (let i = 0; i < volume.np; i++) maxX = Math.max(maxX, volume.pos[i * 3]);
+        expect(maxX).toBeCloseTo(50, 0);
     });
     it("voxelises the block and fires holes in the simulator", () => {
         const sim = new BlastMovementSimulator({ seed: 1, voxelRes: 2, maxVoxels: 3000 }).load(toSimData(s));

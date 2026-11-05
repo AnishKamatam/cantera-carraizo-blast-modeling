@@ -8,6 +8,7 @@ import { createDeckEntry } from "../../src/core/DeckEntry.js";
 import { assumption, validateScenario } from "./schema.js";
 import { cutBlock, insidePolygon } from "./block.js";
 import { heightAt } from "./terrain.js";
+import { withBreakZone } from "./breakzone.js";
 
 const TYPICAL = "typical quarry value, not Carraizo data";
 
@@ -43,18 +44,36 @@ function resolveDesign(overrides) {
     return design;
 }
 
-/** Vertical holes on a rectangular grid inside the polygon, with rows firing from the south. */
-export function generatePattern(block, terrain, overrides = {}) {
+const FACES = {
+    // Unit vector toward the free face. Rows run across it and fire from it backward.
+    N: [0, 1], S: [0, -1], E: [1, 0], W: [-1, 0],
+};
+
+// When no one names a free face, rows fire from the south. A convention only: nothing has read it from the ground.
+const DEFAULT_FREE_FACE = "S";
+
+/** Vertical holes on a rectangular grid, with rows firing back from the free face. */
+export function generatePattern(block, terrain, overrides = {}, { freeFace = DEFAULT_FREE_FACE } = {}) {
     const assumptions = resolveDesign(overrides);
     const v = Object.fromEntries(Object.entries(assumptions).map(([name, record]) => [name, record.value]));
+    if (!FACES[freeFace]) throw new Error(`generatePattern: freeFace must be N, S, E or W, not ${freeFace}`);
+    const [fx, fy] = FACES[freeFace];
     const xs = block.polygon.map((p) => p[0]), ys = block.polygon.map((p) => p[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
     const areaM2 = Math.PI * (v.holeDiamMm / 2000) ** 2;
+
+    // Distance back from the face, and along the row.
+    const depth = fy !== 0 ? maxY - minY : maxX - minX;
+    const width = fy !== 0 ? maxX - minX : maxY - minY;
+    const faceX = fx > 0 ? maxX : minX, faceY = fy > 0 ? maxY : minY;
 
     const holes = [], decks = [];
     let row = 0;
-    for (let y = Math.min(...ys) + v.burdenM / 2; y < Math.max(...ys); y += v.burdenM, row++) {
+    for (let back = v.burdenM / 2; back < depth; back += v.burdenM, row++) {
         let column = 0;
-        for (let x = Math.min(...xs) + v.spacingM / 2; x < Math.max(...xs); x += v.spacingM, column++) {
+        for (let along = v.spacingM / 2; along < width; along += v.spacingM, column++) {
+            const x = fy !== 0 ? minX + along : faceX - fx * back;
+            const y = fy !== 0 ? faceY - fy * back : minY + along;
             if (!insidePolygon(x, y, block.polygon)) continue;
             const collarZ = heightAt(terrain.dtm, x, y);
             if (Number.isNaN(collarZ)) continue;
@@ -87,19 +106,26 @@ export function generatePattern(block, terrain, overrides = {}) {
     return { holes, decks, assumptions };
 }
 
-export function scenarioFromTerrain(terrain, polygon, { name, floorZ, overrides = {}, twinVersion, origin = null, block: blockOptions = {} }) {
+export function scenarioFromTerrain(terrain, polygon, { name, floorZ, overrides = {}, twinVersion, origin = null, freeFace, holePolygon = null, block: blockOptions = {}, breakZone = null }) {
     const block = cutBlock(terrain, polygon, { floorZ, ...blockOptions });
-    const { holes, decks, assumptions } = generatePattern(block, terrain, overrides);
-    return validateScenario({
+    const drilled = holePolygon ? { ...block, polygon: holePolygon } : block;
+    const { holes, decks, assumptions } = generatePattern(drilled, terrain, overrides, { freeFace });
+    // Absent keys mean the default: no one chose a face or a drilled area, so none is recorded as an assumption.
+    if (freeFace) assumptions.freeFace = { value: freeFace, source: "set by the caller, such as from terrain shape; not confirmed on site" };
+    const scenario = validateScenario({
         version: 1,
         name,
         origin,
         twin: { version: twinVersion, filledFraction: block.filledFraction },
-        block: { polygon, floorZ, topoPadM: block.topoPadM, topoStride: block.topoStride },
+        block: {
+            polygon, ...(holePolygon ? { holePolygon } : {}), floorZ, ...(freeFace ? { freeFace } : {}),
+            topoPadM: block.topoPadM, topoStride: block.topoStride,
+        },
         holes,
         decks,
         surfaces: [block.volume, block.topo, block.preblast],
         assumptions,
         measured: ["surfaces"],
     });
+    return breakZone ? withBreakZone(scenario, terrain, breakZone) : scenario;
 }
