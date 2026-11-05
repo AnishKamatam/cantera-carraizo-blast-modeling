@@ -191,7 +191,8 @@ export async function runFastModels(scenario, { seed, maxVoxels = 30000, overrid
         throw: {
             comShift: result.comShift,
             swell: result.swell,
-            swellIsPrescribed: true,
+            // Coulomb contact lets the pile bulk on its own; the legacy contact holds it at the set swell.
+            swellIsPrescribed: overrides.contactModel !== "coulomb",
             settled: result.settled,
             restFraction: result.stats.resting / result.blockCount,
             blockCount: result.blockCount,

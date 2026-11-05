@@ -53,6 +53,10 @@ describe("runFastModels on SWELLFACTOR", () => {
         expect(res.calibration).toBe("uncalibrated");
         expect(res.throw.swellIsPrescribed).toBe(true);
     });
+    it("doesn't call swell prescribed when Coulomb contact lets the pile bulk on its own", async () => {
+        const coulomb = await runFastModels(swell, { seed: 7, maxVoxels: 1500, overrides: { contactModel: "coulomb" } });
+        expect(coulomb.throw.swellIsPrescribed).toBe(false);
+    }, 60000);
     it("reports the library's receptor evaluation", () => {
         const first = res.vibration[0];
         const direct = evaluateReceptor({ x: first.x, y: first.y, z: first.z }, decksFromEntries(swell.decks), { distanceMode: "3D", superposeRMS: true });

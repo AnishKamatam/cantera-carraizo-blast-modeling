@@ -22,18 +22,19 @@
  */
 
 import { voxeliseVolumesBudget, voxeliseHoleBBox } from "./Voxeliser.js";
-import { flattenTriangles } from "./SurfaceMesh.js";
-import { buildShellBin, lidExclusionKeys } from "./ShellCollider.js";
+import { flattenTriangles, calibrationGrid, columnThickness } from "./SurfaceMesh.js";
+import { buildShellBin, lidExclusionKeys, shellHeightAt } from "./ShellCollider.js";
 import { computeThrowDirections } from "./ThrowDirections.js";
 import { simHolesFromEntries, prepareChargeElements, nearestHole, assignYangVelocities, assignEnergyPartitionVelocities, YANG_DEFAULTS, ENERGY_DEFAULTS } from "./InitialVelocity.js";
-import { createParticleState, assignBlockRadii, SpatialHash, physicsStep, resetParticleState, SUB_DT, DEM_DEFAULTS, ST_INACTIVE, ST_ACTIVE, ST_REST } from "./SphereDEM.js";
-import { displacementVectors, centreOfMassShift, swellPrescribed, swellEmergent, muckpileHeightfield, surveyTargets } from "./Displacement.js";
+import { createParticleState, assignBlockRadii, SpatialHash, physicsStep, resetParticleState, bulkGrowthFactor, pickBoulderClusters, mergeBlocks, fitBoulders, SUB_DT, DEM_DEFAULTS, COULOMB_DEFAULTS, ST_INACTIVE, ST_ACTIVE, ST_REST } from "./SphereDEM.js";
+import { kuzRam, blastInputs, boulderPlan, ROCK_FACTOR, RELATIVE_WEIGHT_STRENGTH, DRILL_ERROR_M, RWS_EXPONENT_2005 } from "./Fragmentation.js";
+import { displacementVectors, centreOfMassShift, swellPrescribed, swellEmergent, swellBulk, muckpileHeightfield, surveyTargets } from "./Displacement.js";
 import { mulberry32 } from "../signal/Detune.js";
 
 export var SIM_DEFAULTS = {
     voxelRes: 1.5,          // m (throw_4 default)
     maxVoxels: 30000,
-    velocityModel: "yang",  // 'yang' | 'energy'
+    velocityModel: "yang",  // 'yang' | 'energy' | 'yang1990'
     fireTimeSource: "deck", // 'deck' (primer-resolved) | 'hole' (surface time)
     seed: null,             // PRNG seed (null = Math.random)
     settleAfterLastFireS: 0.5,
@@ -41,11 +42,23 @@ export var SIM_DEFAULTS = {
     groundZ: null           // world Z of the ground plane; null = base of the lowest block
 };
 
+/** A misspelt model name would otherwise run the old model without a word. */
+function checkModelNames(o) {
+    var velocity = ["yang", "energy", "yang1990"];
+    if (o.velocityModel != null && velocity.indexOf(o.velocityModel) < 0) {
+        throw new RangeError("velocityModel must be \"yang\", \"energy\" or \"yang1990\", got " + o.velocityModel);
+    }
+    if (o.contactModel != null && o.contactModel !== "coulomb") {
+        throw new RangeError("contactModel must be \"coulomb\" or unset (the old contact), got " + o.contactModel);
+    }
+}
+
 export class BlastMovementSimulator {
     /**
      * @param {Object} [opts] - SIM_DEFAULTS + DEM_DEFAULTS + YANG_DEFAULTS/ENERGY_DEFAULTS overrides
      */
     constructor(opts) {
+        checkModelNames(opts || {});
         this.opts = Object.assign({}, SIM_DEFAULTS, opts || {});
         this.dem = Object.assign({}, DEM_DEFAULTS, opts || {});
         this.yang = Object.assign({}, YANG_DEFAULTS, opts || {});
@@ -144,7 +157,10 @@ export class BlastMovementSimulator {
         }
         S.groundZ = (o.groundZ != null ? o.groundZ - this.origin.z : (pzMin === Infinity ? -10 : pzMin)) - S.radius;
         this.S = S;
+        this.fragmentation = null;
+        if (o.sizeModel != null && o.sizeModel !== "none") { this._applySizeModel(); S = this.S; N = S.N; }
         this.H = new SpatialHash(N, vres * 1.5);
+        this._prepareContactModel();
         this.assignVelocities();
         if (this.engine && this.engine.build) this.engine.build(this);
         return N;
@@ -165,6 +181,7 @@ export class BlastMovementSimulator {
 
     /** Set Yang / energy / DEM parameters (merged) without regenerating voxels. */
     setParams(params) {
+        checkModelNames(params || {});
         Object.assign(this.opts, params || {});
         Object.assign(this.dem, params || {});
         Object.assign(this.yang, params || {});
@@ -174,11 +191,114 @@ export class BlastMovementSimulator {
 
     /** DEM parameter bundle for physicsStep. */
     _P() {
-        return {
+        var P = {
             g: this.dem.g, restitution: this.dem.restitution, friction: this.dem.friction,
             bulkT: this.dem.bulkT, maxSwell: this.dem.maxSwell, swellCapLin: Math.cbrt(this.dem.maxSwell),
             bulking: !(this.engine && this.engine.emergentSwell)
         };
+        if (this.dem.contactModel === "coulomb") {
+            P.contactModel = "coulomb";
+            P.swellCapLin = this.coulombGrowth;
+            for (var key in COULOMB_DEFAULTS) if (this.dem[key] != null) P[key] = this.dem[key];
+        }
+        return P;
+    }
+
+    /** "coulomb": grow spheres so the pile bulks to maxSwell, and fit the hash to their size. */
+    _prepareContactModel() {
+        if (this.dem.contactModel !== "coulomb" || !this.S) return;
+        var phi = this.dem.packingFraction != null ? this.dem.packingFraction : COULOMB_DEFAULTS.packingFraction;
+        // The mesh's volume, not the voxel count's: a coarse lattice can be several percent off.
+        this.coulombGrowth = bulkGrowthFactor(this.S, this.rockVolumeM3(), this.dem.maxSwell, phi);
+        var largest = 0;
+        for (var i = 0; i < this.S.N; i++) if (this.S.baseRad[i] > largest) largest = this.S.baseRad[i];
+        var needed = 2 * largest * this.coulombGrowth * 1.03;
+        if (needed > this.H.cellSize) this.H = new SpatialHash(this.S.N, needed);
+    }
+
+    /**
+     * `sizeModel: "kuzram"`: estimate the fragment sizes for this design, then merge cells into
+     * boulders for the rock the curve holds above a cell. Rock finer than a cell can't be resolved,
+     * so those cells stay as lumps. Uncalibrated, and not for safety decisions.
+     *
+     * Options: rockFactorA, rws, rwsExponent, drillErrorM, chargeBasis, burdenM, spacingM, holeDiamMm.
+     */
+    _applySizeModel() {
+        var o = this.opts;
+        if (o.sizeModel !== "kuzram") throw new RangeError("sizeModel must be \"kuzram\" or \"none\", got " + o.sizeModel);
+        if (this.dem.contactModel !== "coulomb" || this.engine) throw new RangeError("sizeModel \"kuzram\" needs contactModel \"coulomb\" and no external engine");
+        var S = this.S, res = this.actualRes, cells = S.N;
+        var rockM3 = this.rockVolumeM3();
+        var design = blastInputs(this.holes, rockM3, { chargeBasis: o.chargeBasis, burdenM: o.burdenM, spacingM: o.spacingM, holeDiamMm: o.holeDiamMm });
+        var inputs = Object.assign(design, {
+            A: o.rockFactorA != null ? o.rockFactorA : ROCK_FACTOR.central,
+            RWS: o.rws != null ? o.rws : RELATIVE_WEIGHT_STRENGTH.central,
+            W: o.drillErrorM != null ? o.drillErrorM : DRILL_ERROR_M,
+            rwsExponent: o.rwsExponent != null ? o.rwsExponent : RWS_EXPONENT_2005
+        });
+        var estimate = kuzRam(inputs, { sizesM: o.fragmentSizesM });
+        var xMaxM = Math.min(design.B, design.S);
+        var plan = boulderPlan({ x50M: estimate.x50M, n: estimate.n, cellM: res, cells: cells, xMaxM: xMaxM });
+        var unplaced = 0;
+        if (plan.classes.length) {
+            var picked = pickBoulderClusters(S, res, plan.classes, this.rng);
+            unplaced = picked.unplacedCells;
+            S = mergeBlocks(S, picked.clusters);
+            fitBoulders(S, this.SB);
+            for (var i = 0; i < S.N; i++) {
+                if (S.cells[i] < 2) continue;
+                var nh = this.holes.length ? nearestHole(this.holes, this.hb, S.ox[i] + this.origin.x, S.oy[i] + this.origin.y, S.oz[i] + this.origin.z) : [-1, Infinity];
+                S.nearH[i] = nh[0]; S.nearD[i] = nh[1];
+                S.at[i] = nh[0] >= 0 ? this.holes[nh[0]].fireT : 0;
+            }
+        } else {
+            S.cells = new Uint16Array(S.N).fill(1);
+            S.cellsTotal = S.N;
+        }
+        S.rockPerCellM3 = rockM3 / cells;
+        this.S = S;
+        this.fragmentation = Object.assign({ model: "kuzram", uncalibrated: true, cellM: res, cells: cells, xMaxM: xMaxM, plan: plan, unplacedCells: unplaced }, estimate);
+    }
+
+    /** Per-block size data for a viewer: current radius, cells merged, rock represented. */
+    blockSizes() {
+        var S = this.S, N = S ? S.N : 0;
+        var perCell = S ? (S.rockPerCellM3 || this.rockVolumeM3() / N) : 0;
+        var cells = S && S.cells ? S.cells : new Uint16Array(N).fill(1);
+        var represented = new Float64Array(N), boulder = new Uint8Array(N);
+        for (var i = 0; i < N; i++) { represented[i] = cells[i] * perCell; boulder[i] = cells[i] > 1 ? 1 : 0; }
+        return { count: N, rad: S ? S.rad : new Float32Array(0), cells: cells, boulder: boulder, representedM3: represented };
+    }
+
+    /** The estimate plus what the run made of it. Null without a size model. */
+    _fragmentationSummary() {
+        if (!this.fragmentation) return null;
+        var S = this.S, largest = 0, largestRad = 0, boulders = 0;
+        for (var i = 0; i < S.N; i++) {
+            if (S.cells[i] > 1) boulders++;
+            if (S.cells[i] > largest) largest = S.cells[i];
+            if (S.baseRad[i] > largestRad) largestRad = S.baseRad[i];
+        }
+        var res = this.actualRes;
+        return Object.assign({}, this.fragmentation, {
+            blocks: S.N, boulders: boulders, largestBoulderCells: largest,
+            largestBoulderRockM3: largest * S.rockPerCellM3,
+            largestBoulderScreenM: res * Math.cbrt(largest),
+            largestBlockFinalDiameterM: 2 * largestRad * (this.coulombGrowth || 1)
+        });
+    }
+
+    /** In-situ rock: the closed volume mesh when there is one, else one voxel per block. */
+    rockVolumeM3() {
+        if (this._rockFor !== this.S) {
+            this._rockFor = this.S;
+            var vols = this.surfaces.filter(function (s) { return s.role === "voxelblk"; });
+            var grid = vols.length ? calibrationGrid(vols, 0, Math.min(2, this.actualRes)) : null;
+            var sum = 0;
+            if (grid) { var thick = columnThickness(vols, grid).thick; for (var q = 0; q < thick.length; q++) sum += thick[q]; }
+            this._rockM3 = sum > 0 ? sum * grid.cell * grid.cell : (this.S.cellsTotal || this.S.N) * this.actualRes * this.actualRes * this.actualRes;
+        }
+        return this._rockM3;
     }
 
     /** Blocks back in-situ, clock zeroed. */
@@ -193,6 +313,7 @@ export class BlastMovementSimulator {
     /** Fire: reset + refresh velocities + start. */
     fire() {
         this.reset();
+        this._prepareContactModel();
         this.assignVelocities();
         if (this.engine && this.engine.build) this.engine.build(this);
         this.running = true;
@@ -285,12 +406,23 @@ export class BlastMovementSimulator {
     results(opts) {
         opts = opts || {};
         if (!this.S) return null;
+        var coulomb = this.dem.contactModel === "coulomb";
+        var S = this.S, SB = this.SB;
+        var bulk = swellBulk(S, {
+            restedOnly: coulomb, // airborne rock isn't bulk; other contact keeps its old reading
+            insituM3: this.rockVolumeM3(),
+            floorAt: function (x, y) { return Math.max(shellHeightAt(SB, x, y), S.groundZ); }
+        });
+        var sizes = this._fragmentationSummary();
         return {
+            ...(sizes ? { fragmentation: sizes } : {}),
             vectors: displacementVectors(this.S, this.origin),
             comShift: centreOfMassShift(this.S),
-            swell: this.engine && this.engine.emergentSwell ? swellEmergent(this.S) : swellPrescribed(this.S),
+            // Under "coulomb" the swell reported is the bulk of the rock at rest (null if none is).
+            swell: coulomb ? bulk : (this.engine && this.engine.emergentSwell ? swellEmergent(this.S) : swellPrescribed(this.S)),
             swellEmergent: swellEmergent(this.S),
-            heightfield: muckpileHeightfield(this.S, this.origin, opts.heightfieldCell || 2),
+            swellBulk: bulk,
+            heightfield: muckpileHeightfield(this.S, this.origin, opts.heightfieldCell || 2, { spheres: coulomb }),
             time: this.time, blockCount: this.S.N, origin: this.origin, res: this.actualRes,
             settled: this.isSettled(), stats: this.stats
         };

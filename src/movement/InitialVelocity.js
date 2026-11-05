@@ -27,9 +27,15 @@
  *    the charge column (stemming zone held back and more vertical, sub-grade
  *    flatter).
  *
+ * 3) YANG & KAVETSKY (1990) AS PUBLISHED, behind velocityModel: "yang1990". Eq 12-14
+ *    from the row behind, Eq 15-17 confinement, Eq 18 delay, Eq 21 density, with no
+ *    steering, timing window, jitter or cap. See assignYang1990Velocities.
+ *
  * Ported from the Kirra blast-throw simulator (prepareEnergetics /
  * assignThrowVectors, both generations).
  */
+
+import { firingRows } from "./ThrowDirections.js";
 
 export var ELEM_RCUT = 14;      // m — element contribution cutoff
 // Tuned to one shot, not from a published model; Pe still has to be fitted per site.
@@ -44,6 +50,31 @@ export var YANG_DEFAULTS = {
     fallbackVelocity: 5,// m/s when no charge element reaches the block
     rockDensity: 2650,  // kg/bcm; v ∝ √(2650/ρ)
     jitter: 0.1         // ±10 % random scatter on velocity
+};
+
+/**
+ * velocityModel: "yang1990". Evidence levels are labelled on each value. Pe, Pr and Pd
+ * are meant to be calibrated per site by Eq 20; every result at another site is
+ * uncalibrated until that is done.
+ */
+export var YANG1990_DEFAULTS = {
+    // PRIMARY, but one site: second case study, Eq 20 fit, ANFO decks in 290 mm holes on
+    // an 18 m bench. Eq 21 covers changing explosive "with the same hole diameter" only,
+    // and Eq 12 has no diameter term, so this Pe embeds that hole size. Named PeAnfo
+    // because the older model's `Pe` has different units.
+    PeAnfo: 55,
+    Pr: 1.35,          // PRIMARY, same fit. Rock parameter; |dV| falls as 1/r^(2 Pr - 1)
+    Pd: 0.01,          // PRIMARY (s). Same value at all three of their sites, 5-6 rows each
+    C1: 0.2,           // PRIMARY. "Constant with an empirically determined value"
+    rhoAnfo: 850,      // kg/m3. Judgement: usual ANFO density; the pages we hold give none
+    rowWindowMs: 25,   // Judgement, from their Fig 1 (25 ms within a row, 120 ms between)
+    rowRangeM: 30,     // Judgement: "spaced within a certain distance", no value given
+    minRadiusM: null,  // Judgement: null = block half-width, a block's centre being the
+                       // nearest it can stand for. Eq 8 is singular at r = 0
+    sideFreeFace: false, // Judgement: rock edge along a row counts as confined, their Types 2, 4, 6
+    delayS: null,      // Td override (s); null = from fire times (DERIVED, see firingRows)
+    segmentM: 0.25,    // Integration step along the charge
+    maxLaunchSpeed: null // No cap: none is sourced. launchDiag reports the speeds
 };
 
 export var ENERGY_DEFAULTS = {
@@ -214,6 +245,7 @@ export function nearestHole(holes, hb, wx, wy, wz) {
  * @returns {number} v0Max (m/s)
  */
 export function assignYangVelocities(S, origin, holes, hb, params, rng) {
+    if (params && params.velocityModel === "yang1990") return assignYang1990Velocities(S, origin, holes, params);
     var p = Object.assign({}, YANG_DEFAULTS, params || {});
     var rand = rng || Math.random;
     var N = S.N;
@@ -292,6 +324,267 @@ export function assignYangVelocities(S, origin, holes, hb, params, rng) {
         if (sp > vMax) vMax = sp;
     }
     return vMax || fallbackV;
+}
+
+/**
+ * Split a hole's explosive decks into segments of exactly the charge's length.
+ * @param {Object} hole - sim hole
+ * @param {number} [segmentM=0.25]
+ * @returns {Array<{x,y,z,dl,rho}>} rho in kg/m3
+ */
+export function holeChargeSegments(hole, segmentM) {
+    var dx = hole.tx - hole.cx, dy = hole.ty - hole.cy, dz = hole.tz - hole.cz;
+    var len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    var out = [];
+    if (len < 0.1) return out;
+    var step = segmentM > 0 ? segmentM : 0.25;
+    var decks = hole.explDecks;
+    if (!decks || !decks.length) decks = [{ top: hole.stemLen > 0 ? hole.stemLen : Math.min(2.5, len * 0.25), base: len, rho: 1150 }];
+    for (var d = 0; d < decks.length; d++) {
+        var top = Math.max(0, decks[d].top), base = Math.min(len, decks[d].base);
+        if (!(base > top)) continue;
+        var count = Math.max(1, Math.round((base - top) / step)), dl = (base - top) / count;
+        for (var i = 0; i < count; i++) {
+            var f = (top + (i + 0.5) * dl) / len;
+            out.push({ x: hole.cx + dx * f, y: hole.cy + dy * f, z: hole.cz + dz * f, dl: dl, rho: decks[d].rho || 1150 });
+        }
+    }
+    return out;
+}
+
+/**
+ * Eq 12-14 with Eq 21: the sum over charge segments of
+ * Pe sqrt(rho / rho_ANFO) dl (X - Xe) / r^(2 Pr). r is held at rMin near a charge, keeping
+ * direction, so a segment's |dV| can't exceed its Eq 8 value at rMin.
+ *
+ * @param {number} x @param {number} y @param {number} z
+ * @param {Array<{x,y,z,dl,rho}>} segments
+ * @param {{PeAnfo:number, Pr:number, rhoAnfo:number, rMin:number}} params
+ * @param {{clipped:number}} [tally] - counts segments the near-charge limit applied to
+ * @returns {{x:number, y:number, z:number}}
+ */
+export function chargeVelocity1990(x, y, z, segments, params, tally) {
+    var vx = 0, vy = 0, vz = 0;
+    var exponent = 2 * params.Pr - 1, rMin = params.rMin;
+    for (var s = 0; s < segments.length; s++) {
+        var e = segments[s];
+        var ex = x - e.x, ey = y - e.y, ez = z - e.z;
+        var r = Math.sqrt(ex * ex + ey * ey + ez * ez);
+        if (r === 0) continue; // no direction
+        var rEff = r;
+        if (r < rMin) { rEff = rMin; if (tally) tally.clipped++; }
+        var m = params.PeAnfo * Math.sqrt(e.rho / params.rhoAnfo) * e.dl / (Math.pow(rEff, exponent) * r);
+        vx += m * ex; vy += m * ey; vz += m * ez;
+    }
+    return { x: vx, y: vy, z: vz };
+}
+
+/** Eq 15-17. D = Infinity is the paper's setting for a blast confined that way. */
+export function confinementFactor(distanceM, C1) {
+    return distanceM === Infinity ? 0 : Math.exp(-C1 * distanceM);
+}
+
+/** Eq 18. n rows in front, Td in seconds. */
+export function delayFactor(Pd, rowsInFront, delayS) {
+    return rowsInFront > 0 ? Math.exp(-Pd * rowsInFront / delayS) : 1;
+}
+
+/**
+ * Occupancy grid of the rock, holding each block's launch time.
+ * @param {ArrayLike<number>} positions - flat x,y,z block centres on a lattice of `cell`
+ * @param {ArrayLike<number>} times     - launch time per block (s)
+ * @param {number} cell
+ */
+export function buildRockGrid(positions, times, cell) {
+    var count = positions.length / 3;
+    var minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+    for (var i = 0; i < count; i++) {
+        var x = positions[i * 3], y = positions[i * 3 + 1], z = positions[i * 3 + 2];
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+    }
+    var grid = {
+        x0: minX - cell / 2, y0: minY - cell / 2, z0: minZ - cell / 2, cell: cell,
+        nx: Math.round((maxX - minX) / cell) + 1, ny: Math.round((maxY - minY) / cell) + 1, nz: Math.round((maxZ - minZ) / cell) + 1
+    };
+    grid.time = new Float64Array(grid.nx * grid.ny * grid.nz).fill(NaN);
+    for (var b = 0; b < count; b++) {
+        var ci = Math.floor((positions[b * 3] - grid.x0) / cell), cj = Math.floor((positions[b * 3 + 1] - grid.y0) / cell), ck = Math.floor((positions[b * 3 + 2] - grid.z0) / cell);
+        grid.time[(ck * grid.ny + cj) * grid.nx + ci] = times[b];
+    }
+    return grid;
+}
+
+/**
+ * Distance along a ray through rock still in place, to rock that fired before
+ * `movedBefore` (s), or to the edge of the rock.
+ * @param {boolean} [edgeIsFree=true] - false: reaching the edge of the rock means confined
+ * @returns {number} metres, or Infinity when confined
+ */
+export function freeDistance(grid, x, y, z, ux, uy, uz, movedBefore, edgeIsFree) {
+    var step = grid.cell / 2;
+    var limit = (grid.nx + grid.ny + grid.nz) * grid.cell;
+    for (var d = step; d <= limit; d += step) {
+        var i = Math.floor((x + ux * d - grid.x0) / grid.cell);
+        var j = Math.floor((y + uy * d - grid.y0) / grid.cell);
+        var k = Math.floor((z + uz * d - grid.z0) / grid.cell);
+        var t = (i < 0 || j < 0 || k < 0 || i >= grid.nx || j >= grid.ny || k >= grid.nz) ? NaN : grid.time[(k * grid.ny + j) * grid.nx + i];
+        if (t !== t) return edgeIsFree === false ? Infinity : d; // NaN: no rock here
+        if (t < movedBefore) return d;
+    }
+    return Infinity;
+}
+
+/**
+ * Launch velocities as Yang & Kavetsky (1990) publish them. PRIMARY for the equations;
+ * these choices are ours, because the paper leaves them open:
+ * - Rows from fire time (their rows are hand-defined). A block belongs to the nearest
+ *   hole behind it along that hole's firing direction, or its nearest hole if none is.
+ *   That hole's row is the holes within rowWindowMs, rowRangeM and half a row spacing of
+ *   its line.
+ * - V_h is along that hole's -grad t, V_r across it. With flat timing, V_h is along the
+ *   block's own horizontal velocity.
+ * - D_sh runs through rock not yet fired, to rock fired over min(rowWindowMs, Td/2) earlier,
+ *   or to the edge of the rock. V_h against the firing direction runs into unfired
+ *   rock, so D_sh = infinity. Blocks know only their own mesh, not the shell, so
+ *   a front edge counts as a free face even where intact rock lies beyond it.
+ * - D_sr: moved rock counts; the rock's edge counts only with sideFreeFace.
+ * - D_sv is "to the surface of the blast", as the paper says, whichever way V_z points.
+ * - r is limited to minRadiusM, by default the block's half-width.
+ * Eq 19 (centre-plane collisions in a V) isn't applied; the DEM has its own collisions.
+ *
+ * Writes S.ivx/ivy/ivz, S.at and S.launchDiag; uses no random numbers.
+ *
+ * @param {Object} S - particle state
+ * @param {{x,y,z}} origin
+ * @param {Array} holes - sim holes with thDirX/thDirY (computeThrowDirections) and fireT
+ * @param {Object} [params] - YANG1990_DEFAULTS overrides
+ * @returns {number} fastest launch speed (m/s)
+ */
+export function assignYang1990Velocities(S, origin, holes, params) {
+    var p = Object.assign({}, YANG1990_DEFAULTS, params || {});
+    if (p.Pe !== undefined && p.Pe !== YANG_DEFAULTS.Pe) {
+        throw new Error("velocityModel yang1990 takes PeAnfo in the paper's units; the older Pe has different units, so it isn't converted. BlastMovementSimulator.calibrate() fits that Pe to throw and doesn't apply here.");
+    }
+    var N = S.N, H = holes.length;
+    if (!H || !N) return 0;
+
+    var res = S.baseR > 0 ? S.baseR / 0.47 : 1; // assignBlockRadii: baseR = 0.47 res
+    var rMin = p.minRadiusM > 0 ? p.minRadiusM : res / 2;
+    var velocityParams = { PeAnfo: p.PeAnfo, Pr: p.Pr, rhoAnfo: p.rhoAnfo, rMin: rMin };
+
+    var rows = firingRows(holes);
+    var Td = p.delayS > 0 ? p.delayS : rows.delayS;
+    var rowDepth = 0.5 * rows.spacing;
+    var windowS = p.rowWindowMs / 1000;
+    var movedLag = Td > 0 ? Math.min(windowS, Td / 2) : windowS;
+    var rowRange2 = p.rowRangeM * p.rowRangeM;
+
+    var segmentsOf = new Array(H);
+    for (var a = 0; a < H; a++) segmentsOf[a] = holeChargeSegments(holes[a], p.segmentM);
+    var rowSegments = new Array(H);
+
+    // A block's launching hole: nearest behind it, else nearest.
+    var launchHoleAt = function (x, y) {
+        var best = -1, bestD2 = rowRange2, any = 0, anyD2 = Infinity;
+        for (var h = 0; h < H; h++) {
+            var hole = holes[h];
+            var dx = x - hole.cx, dy = y - hole.cy;
+            var d2 = dx * dx + dy * dy;
+            if (d2 < anyD2) { anyD2 = d2; any = h; }
+            if (d2 < bestD2 && dx * (hole.thDirX || 0) + dy * (hole.thDirY || 0) >= 0) { bestD2 = d2; best = h; }
+        }
+        return best >= 0 ? best : any;
+    };
+    var launchHole = new Int32Array(N);
+    var world = new Float64Array(N * 3), launchTime = new Float64Array(N);
+    for (var i = 0; i < N; i++) {
+        var x = S.ox[i] + origin.x, y = S.oy[i] + origin.y, z = S.oz[i] + origin.z;
+        world[i * 3] = x; world[i * 3 + 1] = y; world[i * 3 + 2] = z;
+        launchHole[i] = launchHoleAt(x, y);
+        launchTime[i] = holes[launchHole[i]].fireT;
+    }
+    var grid;
+    if (S.rockCells) {
+        // Merged blocks: the rock is every cell from before the merge, not the blocks left after it.
+        var cells = S.rockCells.ox.length;
+        var cellWorld = new Float64Array(cells * 3), cellTime = new Float64Array(cells);
+        for (var c = 0; c < cells; c++) {
+            var cx = S.rockCells.ox[c] + origin.x, cy = S.rockCells.oy[c] + origin.y;
+            cellWorld[c * 3] = cx; cellWorld[c * 3 + 1] = cy; cellWorld[c * 3 + 2] = S.rockCells.oz[c] + origin.z;
+            cellTime[c] = holes[launchHoleAt(cx, cy)].fireT;
+        }
+        grid = buildRockGrid(cellWorld, cellTime, res);
+    } else {
+        grid = buildRockGrid(world, launchTime, res);
+    }
+
+    var vMax = 0, capped = 0, nearCharge = 0, confinedH = 0, delaySum = 0, tally = { clipped: 0 };
+    for (var b = 0; b < N; b++) {
+        var hi = launchHole[b], hd = holes[hi];
+        if (!rowSegments[hi]) rowSegments[hi] = rowChargeSegments(hi, holes, segmentsOf, windowS, rowDepth, rowRange2);
+        var bx = world[b * 3], by = world[b * 3 + 1], bz = world[b * 3 + 2];
+        tally.clipped = 0;
+        var v = chargeVelocity1990(bx, by, bz, rowSegments[hi], velocityParams, tally);
+        if (tally.clipped > 0) nearCharge++;
+
+        // Firing direction, or the block's own horizontal velocity when timing is flat.
+        var nx = hd.thDirX || 0, ny = hd.thDirY || 0;
+        var directed = nx !== 0 || ny !== 0;
+        if (!directed) {
+            var flat = Math.sqrt(v.x * v.x + v.y * v.y);
+            nx = flat > 0 ? v.x / flat : 1; ny = flat > 0 ? v.y / flat : 0;
+        }
+        var rx = -ny, ry = nx;
+        var vh = v.x * nx + v.y * ny, vr = v.x * rx + v.y * ry;
+        var movedBefore = hd.fireT - movedLag;
+
+        var dh = vh < 0 ? Infinity : freeDistance(grid, bx, by, bz, nx, ny, 0, movedBefore, true);
+        var side = vr < 0 ? -1 : 1;
+        var dr = freeDistance(grid, bx, by, bz, rx * side, ry * side, 0, movedBefore, p.sideFreeFace === true);
+        var dv = freeDistance(grid, bx, by, bz, 0, 0, 1, -Infinity, true);
+
+        var delay = delayFactor(p.Pd, rows.rowsInFront[hi], Td);
+        var hOut = vh * confinementFactor(dh, p.C1) * delay;
+        var rOut = vr * confinementFactor(dr, p.C1);
+        var vx = hOut * nx + rOut * rx, vy = hOut * ny + rOut * ry, vz = v.z * confinementFactor(dv, p.C1);
+        if (dh === Infinity) confinedH++;
+        delaySum += delay;
+
+        var speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        if (p.maxLaunchSpeed > 0 && speed > p.maxLaunchSpeed) {
+            var f = p.maxLaunchSpeed / speed;
+            vx *= f; vy *= f; vz *= f; speed = p.maxLaunchSpeed; capped++;
+        }
+        S.ivx[b] = vx; S.ivy[b] = vy; S.ivz[b] = vz;
+        S.at[b] = hd.fireT;
+        if (speed > vMax) vMax = speed;
+    }
+    var maxRows = 0;
+    for (var m = 0; m < H; m++) if (rows.rowsInFront[m] > maxRows) maxRows = rows.rowsInFront[m];
+    S.launchDiag = {
+        model: "yang1990", calibration: "uncalibrated unless PeAnfo, Pr and Pd were fitted to this site by Eq 20",
+        PeAnfo: p.PeAnfo, Pr: p.Pr, Pd: p.Pd, C1: p.C1,
+        rMinM: rMin, delayS: Td, maxRowsInFront: maxRows,
+        nearChargeShare: nearCharge / N, confinedHorizontalShare: confinedH / N,
+        meanDelayFactor: delaySum / N, cappedShare: capped / N
+    };
+    return vMax;
+}
+
+/** The charges in hole hi's row: Eq 12-14's "all relevant charges". */
+function rowChargeSegments(hi, holes, segmentsOf, windowS, rowDepth, rowRange2) {
+    var hd = holes[hi], out = [];
+    for (var j = 0; j < holes.length; j++) {
+        var other = holes[j];
+        if (Math.abs(other.fireT - hd.fireT) > windowS) continue;
+        var dx = other.cx - hd.cx, dy = other.cy - hd.cy;
+        if (dx * dx + dy * dy > rowRange2) continue;
+        if (Math.abs(dx * (hd.thDirX || 0) + dy * (hd.thDirY || 0)) > rowDepth) continue;
+        for (var s = 0; s < segmentsOf[j].length; s++) out.push(segmentsOf[j][s]);
+    }
+    return out;
 }
 
 /**

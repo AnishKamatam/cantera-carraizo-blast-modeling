@@ -7,13 +7,14 @@
  *   displacementVectors(S, origin)      — per-block in-situ → final vectors (world coords)
  *   centreOfMassShift(S)                — volume-weighted horizontal CoM shift (m, bearing)
  *   swellPrescribed(S) / swellEmergent(S) — achieved bulk swell factors
+ *   swellBulk(S)                        — measured bulk of the pile vs in-situ rock
  *   muckpileHeightfield(S, origin, cell)— settled pile top-of-block raster + surface object
  *   surveyTargets(surfaces)             — swell + CoM throw from PREBLAST_VOLUME / SHELL / POSTBLAST meshes
  *
  * Ported from the Kirra blast-throw simulator (STEP 20 back-calculation).
  */
 
-import { ST_INACTIVE } from "./SphereDEM.js";
+import { ST_INACTIVE, ST_REST } from "./SphereDEM.js";
 import { calibrationGrid, rasterTop, columnThickness, surfaceFromHeightfield } from "./SurfaceMesh.js";
 
 /**
@@ -91,9 +92,9 @@ export function swellEmergent(S, cell) {
     var insituV = 0;
     for (var i = 0; i < S.N; i++) {
         if (S.state[i] === ST_INACTIVE) continue;
-        // One voxel of rock per block; baseR is 0.47 of the voxel edge.
+        // One voxel of rock per cell a block holds; baseR is 0.47 of the voxel edge.
         var voxel = S.baseR / 0.47;
-        insituV += voxel * voxel * voxel;
+        insituV += voxel * voxel * voxel * (S.cells ? S.cells[i] : 1);
         var k = Math.floor(S.px[i] / cell) + "|" + Math.floor(S.py[i] / cell);
         var e = occ.get(k);
         if (!e) occ.set(k, { lo: S.pz[i], hi: S.pz[i] });
@@ -105,11 +106,92 @@ export function swellEmergent(S, cell) {
 }
 
 /**
+ * Visit every grid column whose centre lies under a sphere, skipping any off the grid.
+ * @param {number} x - sphere centre, in the grid's coordinates
+ * @param {number} y
+ * @param {number} r - sphere radius
+ * @param {{gx0, gy0, cell, nx, ny}} G
+ * @param {function(number, number)} visit - (column index, half the sphere's height over that centre)
+ */
+export function sphereColumns(x, y, r, G, visit) {
+    var cell = G.cell;
+    var i0 = Math.max(0, Math.floor((x - r - G.gx0) / cell)), i1 = Math.min(G.nx - 1, Math.floor((x + r - G.gx0) / cell));
+    var j0 = Math.max(0, Math.floor((y - r - G.gy0) / cell)), j1 = Math.min(G.ny - 1, Math.floor((y + r - G.gy0) / cell));
+    for (var j = j0; j <= j1; j++) for (var i = i0; i <= i1; i++) {
+        var ex = G.gx0 + (i + 0.5) * cell - x, ey = G.gy0 + (j + 0.5) * cell - y, h2 = r * r - ex * ex - ey * ey;
+        if (h2 < 0) continue;
+        visit(j * G.nx + i, Math.sqrt(h2));
+    }
+}
+
+/**
+ * Measured bulk swell: the volume between the top of the fired spheres and the floor
+ * under them, column by column, against the in-situ rock they came from. Each sphere
+ * is drawn at its true size, so it reads the same whether or not blocks outsize a cell.
+ * @param {Object} S
+ * @param {Object} [opts]
+ *   cell=1: column size (m)
+ *   floorAt(x, y): floor height in local coords. Taken as the base where it lies within
+ *     one block's size under the lowest sphere; otherwise the sphere's underside is.
+ *   insituM3: in-situ rock of all N blocks. Default: one voxel per block.
+ *   restedOnly: measure only blocks at rest, against the rock those blocks hold. A block in
+ *     the air would otherwise read as a column of bulk down to the pile under it. In a run
+ *     stopped early this is the part that has landed, not the whole pile.
+ * @returns {number|null} null when no block is counted
+ */
+export function swellBulk(S, opts) {
+    if (!S.N) return null;
+    opts = opts || {};
+    var cell = opts.cell > 0 ? opts.cell : 1.0;
+    var counted = opts.restedOnly
+        ? function (n) { return S.state[n] === ST_REST; }
+        : function (n) { return S.state[n] !== ST_INACTIVE; };
+    var mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity, fired = 0, largest = 0;
+    for (var i = 0; i < S.N; i++) {
+        if (!counted(i)) continue;
+        fired += S.cells ? S.cells[i] : 1;
+        var r = S.rad[i];
+        if (r > largest) largest = r;
+        if (S.px[i] - r < mnX) mnX = S.px[i] - r; if (S.px[i] + r > mxX) mxX = S.px[i] + r;
+        if (S.py[i] - r < mnY) mnY = S.py[i] - r; if (S.py[i] + r > mxY) mxY = S.py[i] + r;
+    }
+    if (!fired) return null;
+    var nx = Math.ceil((mxX - mnX) / cell) + 1, ny = Math.ceil((mxY - mnY) / cell) + 1;
+    var hi = new Float64Array(nx * ny).fill(-Infinity), lo = new Float64Array(nx * ny).fill(Infinity);
+    var G = { gx0: mnX, gy0: mnY, cell: cell, nx: nx, ny: ny }, z;
+    var widen = function (q, h) {
+        if (z + h > hi[q]) hi[q] = z + h;
+        if (z - h < lo[q]) lo[q] = z - h;
+    };
+    for (var k = 0; k < S.N; k++) {
+        if (!counted(k)) continue;
+        z = S.pz[k];
+        sphereColumns(S.px[k], S.py[k], S.rad[k], G, widen);
+    }
+    var bulk = 0;
+    for (var bb = 0; bb < ny; bb++) for (var aa = 0; aa < nx; aa++) {
+        var c = bb * nx + aa;
+        if (!(hi[c] > lo[c])) continue;
+        var base = lo[c];
+        if (opts.floorAt) {
+            var f = opts.floorAt(mnX + (aa + 0.5) * cell, mnY + (bb + 0.5) * cell);
+            if (f < base && base - f < 2 * largest) base = f;
+        }
+        bulk += hi[c] - base;
+    }
+    var voxel = S.baseR / 0.47;
+    var insitu = opts.insituM3 > 0 ? opts.insituM3 * fired / (S.cellsTotal || S.N) : fired * voxel * voxel * voxel;
+    return bulk * cell * cell / insitu;
+}
+
+/**
  * Raster of the settled pile: highest block top per column (world coords).
  * @param {Object} S
  * @param {{x,y,z}} origin
  * @param {number} [cell=2]
- * @param {Object} [opts] - { pad=10, name='POSTBLAST_SIM', firedOnly=true }
+ * @param {Object} [opts] - { pad=10, name='POSTBLAST_SIM', firedOnly=true, spheres=false }
+ *   spheres: draw each sphere at its true size over every column centre it covers, so
+ *   blocks larger than a cell leave no holes. The default bins centres only.
  * @returns {{ grid: {gx0,gy0,cell,nx,ny}, z: Float64Array, surface: Object|null }}
  */
 export function muckpileHeightfield(S, origin, cell, opts) {
@@ -125,10 +207,16 @@ export function muckpileHeightfield(S, origin, cell, opts) {
     }
     if (mnX === Infinity) return { grid: null, z: new Float64Array(0), surface: null };
     var G = { gx0: mnX - pad, gy0: mnY - pad, cell: cell, nx: Math.ceil((mxX - mnX + 2 * pad) / cell) + 1, ny: Math.ceil((mxY - mnY + 2 * pad) / cell) + 1 };
-    var z = new Float64Array(G.nx * G.ny).fill(-1e9);
+    var z = new Float64Array(G.nx * G.ny).fill(-1e9), zc;
+    var raiseToCap = function (q, h) { if (zc + h > z[q]) z[q] = zc + h; };
     for (var k = 0; k < S.N; k++) {
         if (firedOnly && S.state[k] === ST_INACTIVE) continue;
         var wx = S.px[k] + origin.x, wy = S.py[k] + origin.y, top = S.pz[k] + origin.z + S.rad[k];
+        if (opts.spheres) {
+            zc = S.pz[k] + origin.z;
+            sphereColumns(wx, wy, S.rad[k], G, raiseToCap);
+            continue;
+        }
         var ci = Math.floor((wx - G.gx0) / cell), cj = Math.floor((wy - G.gy0) / cell);
         if (ci < 0 || ci >= G.nx || cj < 0 || cj >= G.ny) continue;
         var q = cj * G.nx + ci;
