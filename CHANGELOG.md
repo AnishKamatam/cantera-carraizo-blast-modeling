@@ -7,6 +7,15 @@ may already have saved, so read them before comparing old output with new.
 
 ## [Unreleased]
 
+Opt-in muckpile models, all uncalibrated. Default results don't change.
+
+- `contactModel: "coulomb"`: Coulomb friction, shell contact that lets runs settle, and swell measured on pile bulk.
+- `velocityModel: "yang1990"`: launch following Yang & Kavetsky (1990). Unknown `contactModel` or `velocityModel` names now throw.
+- `sizeModel: "kuzram"`: Kuz-Ram fragment-size estimate, with cells merged into boulders where rock is coarser than a cell.
+- `swellEmergent` now weights merged blocks by their cells.
+- Scenario builder: charge-based break zone, in `sim/scenario/breakzone.js`.
+- `scripts/score-swellfactor.mjs`: fixed yardstick against the surveyed shot. `sim/blast-page/`: 3D Block B page.
+
 Corrections from a research audit; see `docs/verification/README.md`. **Changes numbers** except where noted.
 
 - Site law (`computePPV`, `computePPVDeck`): W is now charge per delay (USBM RI 6774), not per deck, so charges firing within `delayWindowMs` (default 8 ms) add. Two equal charges read about 1.74× higher. `delayWindowMs: null` restores per-deck values. `evaluateReceptor` adds `ppvPerDelay`; `ppvMax` is unchanged.
