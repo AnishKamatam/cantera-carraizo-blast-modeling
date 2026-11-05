@@ -1,0 +1,563 @@
+<meta charset="utf-8" />
+<title>Carraizo Block B Blast</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<style>
+  /* Layout: the quarry stage runs first and largest, with the estimate directly under it, then the checks. */
+  :root {
+    --bg: #eceae4;
+    --panel: #f8f7f3;
+    --fg: #22241f;
+    --muted: #5d6158;
+    --line: #c8c6bb;
+    --accent: #a8480f;
+    --cool: #35708f;
+    --ok: #2e7048;
+    --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --body: "Barlow", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #171915;
+      --panel: #21241e;
+      --fg: #e9e8e0;
+      --muted: #a6a99c;
+      --line: #3c4036;
+      --accent: #ec9256;
+      --cool: #7fb8d6;
+      --ok: #74c493;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #171915;
+    --panel: #21241e;
+    --fg: #e9e8e0;
+    --muted: #a6a99c;
+    --line: #3c4036;
+    --accent: #ec9256;
+    --cool: #7fb8d6;
+    --ok: #74c493;
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.5 var(--body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px;
+  }
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: grid;
+    gap: 18px;
+    min-width: 0;
+  }
+  h1 {
+    font: 600 clamp(2rem, 5vw, 3rem) / 1.05 var(--display);
+    margin: 0;
+    text-wrap: balance;
+  }
+  h2 {
+    font: 600 1.5rem/1.15 var(--display);
+    margin: 10px 0 0;
+    text-wrap: balance;
+  }
+  p {
+    margin: 0;
+    max-width: 72ch;
+  }
+  .note {
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+  .head {
+    display: grid;
+    gap: 8px;
+  }
+  .status {
+    font-size: 0.95rem;
+    color: var(--fg);
+    border-top: 2px solid var(--accent);
+    padding-top: 8px;
+    max-width: 72ch;
+  }
+  .stagewrap {
+    position: relative;
+    background: #2b3134;
+  }
+  #stage {
+    width: 100%;
+    height: min(66vh, 680px);
+    min-height: 320px;
+    display: block;
+    touch-action: none;
+  }
+  .badge {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    background: rgba(16, 18, 15, 0.72);
+    color: #f2f0e6;
+    font-size: 0.82rem;
+    padding: 4px 9px;
+    pointer-events: none;
+    max-width: calc(100% - 20px);
+  }
+  .clock {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    background: rgba(16, 18, 15, 0.72);
+    color: #f2f0e6;
+    font: 600 1.25rem var(--display);
+    padding: 2px 10px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    align-items: center;
+  }
+  #time {
+    flex: 1 1 220px;
+    min-width: 0;
+    accent-color: var(--accent);
+  }
+  button {
+    font: 600 0.95rem var(--body);
+    padding: 7px 13px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--fg);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+  }
+  button:focus-visible,
+  input:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .group span {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-right: 2px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px 22px;
+    border-block: 1px solid var(--line);
+    padding-block: 12px;
+  }
+  .stats div {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+  .stats b {
+    font: 600 1.75rem/1.1 var(--display);
+    font-variant-numeric: tabular-nums;
+  }
+  .stats span {
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .stats label {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .wrap {
+    overflow-x: auto;
+  }
+  table {
+    color: inherit;
+    border-collapse: collapse;
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 7px 16px 7px 0;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  thead th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.84rem;
+  }
+  tbody th {
+    font-weight: 500;
+  }
+  tr.on th,
+  tr.on td {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  svg.sec {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: var(--panel);
+    border: 1px solid var(--line);
+  }
+  .grid {
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+  .tick {
+    fill: var(--muted);
+    font-size: 13px;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .k {
+    display: inline-block;
+    width: 18px;
+    height: 0;
+    border-top: 3px solid;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  .sw {
+    display: inline-block;
+    width: 14px;
+    height: 11px;
+    margin-right: 6px;
+    vertical-align: -1px;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px 30px;
+  }
+  .cols > div {
+    min-width: 0;
+  }
+  ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 5px;
+    max-width: 68ch;
+  }
+</style>
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=Barlow:wght@400;500;600&display=swap"
+/>
+<main>
+  <div class="head">
+    <h1>Carraizo Block B blast</h1>
+    <p class="status">
+      <strong>Uncalibrated estimate.</strong> No Carraizo blast has been measured, and the hole pattern is
+      borrowed from another site's shot. Use this to look at how the rock moves, not for safety or production
+      decisions.
+    </p>
+  </div>
+  <div class="stagewrap">
+    <canvas id="stage" aria-label="3D animation of the blast on the reconstructed quarry"></canvas>
+    <div class="badge" id="badge"></div>
+    <div class="clock" id="clock">0.00 s</div>
+  </div>
+  <div class="controls">
+    <button id="play" type="button">Play</button
+    ><input id="time" type="range" min="0" step="0.01" value="0" aria-label="Time" /><span
+      class="group"
+      role="group"
+      aria-label="Playback speed"
+      ><span>Speed</span><button type="button" data-speed="1">Real time</button
+      ><button type="button" data-speed="0.25">¼ speed</button></span
+    >
+  </div>
+  <div class="controls">
+    <span class="group" role="group" aria-label="Launch model" id="cases"><span>Run</span></span>
+    <span class="group" role="group" aria-label="How to draw the rock"
+      ><span>Draw as</span><button type="button" data-mode="rock">Rock</button
+      ><button type="button" data-mode="voxel">Simulated blocks</button></span
+    >
+  </div>
+  <p class="note">
+    Drag to rotate, scroll or pinch to zoom. Before firing, each block is one 1 m cell of the rock mass. Block
+    positions, timing and boulders come from the simulation. Rock shapes, colours and the smaller fragments on
+    each block are drawn for appearance, with fragment sizes sampled from the Kuz-Ram curve. Dust isn't shown.
+  </p>
+  <div class="stats" id="stats"></div>
+  <h2>How much the estimate moves</h2>
+  <div class="wrap"><table id="table"></table></div>
+  <p class="note" id="tablenote"></p>
+  <h2>Estimated fragment sizes</h2>
+  <div id="curve"></div>
+  <p class="note">
+    Kuz-Ram estimate for Block B's borrowed design. Share of rock by mass finer than each size. The rock
+    factor is the main unknown because no fragment has been measured at Carraizo or on SWELLFACTOR, so these
+    curves are unverified.
+  </p>
+  <h2>Cross-section through the block</h2>
+  <div id="section"></div>
+  <div class="legend">
+    <span><i class="k" style="border-color: var(--fg)"></i>Original ground</span
+    ><span
+      ><i class="k" style="border-color: var(--ok); border-top-style: dashed"></i>Ground with the break zone
+      removed</span
+    ><span><i class="sw" style="background: var(--accent)"></i>Pile at the end</span>
+  </div>
+  <p class="note">
+    East to the right, heights to scale, cut along the block's centre line. The terrain comes from the drone
+    twin, whose scale rests on drone GPS only.
+  </p>
+  <div class="cols">
+    <div>
+      <h2>Check against a surveyed shot</h2>
+      <p class="note">
+        SWELLFACTOR is a real blast at another site with a before and after survey. Three seeds at 15,000
+        blocks; ranges are across seeds.
+      </p>
+      <div class="wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>SWELLFACTOR</th>
+              <th>Height error</th>
+              <th>Throw</th>
+              <th>Pile overlap</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Nothing moved</th>
+              <td>7.28 m</td>
+              <td>–</td>
+              <td>0.50</td>
+            </tr>
+            <tr>
+              <th scope="row">Old friction</th>
+              <td>5.24–5.27 m</td>
+              <td>15.1–15.3 m</td>
+              <td>0.67–0.68</td>
+            </tr>
+            <tr>
+              <th scope="row">New friction</th>
+              <td>3.50–3.55 m</td>
+              <td>34.2–34.8 m</td>
+              <td>0.92–0.93</td>
+            </tr>
+            <tr>
+              <th scope="row">New friction, paper launch</th>
+              <td>3.50–3.75 m</td>
+              <td>31.6–34.3 m</td>
+              <td>0.93</td>
+            </tr>
+            <tr>
+              <th scope="row">Survey</th>
+              <td>–</td>
+              <td>34.0 m</td>
+              <td>–</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note" style="margin-top: 8px">
+        The throw match is weak evidence: launch strength was tuned on this same shot. A second surveyed blast
+        is needed for a real test.
+      </p>
+    </div>
+    <div>
+      <h2>What to trust</h2>
+      <ul>
+        <li>
+          <strong>Volume in the break zone:</strong> worked out from the charges and a published rock-breaking
+          limit, with no fitting. The same method read 23% high on SWELLFACTOR, so 21,900 m³ is more likely
+          high than low.
+        </li>
+        <li>
+          <strong>Pile and spread:</strong> the figures assume the central break zone, and they also depend strongly on friction, which is a model setting here and
+          hasn't been measured. Piles also stand steeper than real muck.
+        </li>
+        <li>
+          <strong>Fragment sizes:</strong> an uncalibrated estimate. Median size runs from 11 to 50 cm
+          depending on the rock factor, this powder factor is above the cases the method was checked against,
+          and boulders are placed at random because no source gave a location rule.
+        </li>
+        <li>
+          <strong>Far-flying blocks:</strong> don't read these as flyrock distances. The model isn't built or
+          checked for them, and the paper launch sends some implausibly far.
+        </li>
+        <li>
+          <strong>Not measured at Carraizo:</strong> rock strength, density, joints, hole pattern, charge, and
+          timing.
+        </li>
+      </ul>
+    </div>
+  </div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+  (function(){
+  var META=@@META@@;
+  var S=META.shared,N=S.N,half=S.half,n=S.n;
+  function dec(b){var r=Uint8Array.from(atob(b),function(c){return c.charCodeAt(0)}),a=new Int16Array(r.buffer),o=new Float32Array(N*N);for(var i=0;i<N*N;i++)o[i]=a[i]===-32768?NaN:a[i]/20;return o}
+  var PRE=dec(S.pre),POSTR=dec(S.post),POST=new Float32Array(N*N);for(var q=0;q<N*N;q++)POST[q]=isNaN(POSTR[q])?PRE[q]:POSTR[q];
+  var canvas=document.getElementById('stage'),slider=document.getElementById('time'),btn=document.getElementById('play'),clock=document.getElementById('clock'),badge=document.getElementById('badge');
+  var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputEncoding=THREE.sRGBEncoding;
+  var scene=new THREE.Scene();scene.background=new THREE.Color(0xaebcc4);scene.fog=new THREE.Fog(0xaebcc4,240,520);
+  var camera=new THREE.PerspectiveCamera(38,1,1,1400);camera.position.set(88,52,92);
+  var controls=new THREE.OrbitControls(camera,canvas);controls.target.set(18,0,-4);controls.enableDamping=true;controls.maxPolarAngle=1.52;
+  scene.add(new THREE.HemisphereLight(0xdfe9f2,0x5a5244,.62));
+  var sun=new THREE.DirectionalLight(0xfff3df,1.05);sun.position.set(70,120,60);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);var sc=sun.shadow.camera;sc.left=-120;sc.right=120;sc.top=120;sc.bottom=-120;sc.near=10;sc.far=340;sun.shadow.bias=-.0012;sun.shadow.normalBias=.5;scene.add(sun);scene.add(sun.target);
+
+  function hash(i,k){var x=Math.sin(i*12.9898+k*78.233)*43758.5453;return x-Math.floor(x)}
+  function smoothNoise(x,y){var xi=Math.floor(x),yi=Math.floor(y),u=x-xi,v=y-yi;u=u*u*(3-2*u);v=v*v*(3-2*v);function h(a,b){return hash(a*57+b*131,3)}return (h(xi,yi)*(1-u)+h(xi+1,yi)*u)*(1-v)+(h(xi,yi+1)*(1-u)+h(xi+1,yi+1)*u)*v}
+  function fbm(x,y){return .55*smoothNoise(x,y)+.3*smoothNoise(x*2.3,y*2.3)+.15*smoothNoise(x*5.1,y*5.1)}
+
+  // Drone colours, aligned to the scene by world position.
+  var ortho={w:0,h:0,d:null};
+  function orthoAt(wx,wy){if(!ortho.d)return [.5,.48,.44];var c=META.crop,u=(wx-(c.cx-c.half))/(2*c.half),v=1-(wy-(c.cy-c.half))/(2*c.half),px=Math.max(0,Math.min(ortho.w-1,Math.floor(u*ortho.w))),py=Math.max(0,Math.min(ortho.h-1,Math.floor(v*ortho.h))),o=(py*ortho.w+px)*4;return [ortho.d[o]/255,ortho.d[o+1]/255,ortho.d[o+2]/255]}
+  function bakeTexture(cut){var sz=760,cv=document.createElement('canvas');cv.width=cv.height=sz;var cx=cv.getContext('2d'),im=cx.createImageData(sz,sz);
+   for(var y=0;y<sz;y++)for(var x=0;x<sz;x++){var lx=-half+x/(sz-1)*2*half,ly=half-y/(sz-1)*2*half,c=orthoAt(lx+S.cx,ly+S.cy),o=(y*sz+x)*4,r=c[0],g=c[1],b=c[2];
+    if(cut){var i=Math.round(lx+half),j=Math.round(ly+half);if(i>=0&&j>=0&&i<N&&j<N){var dd=PRE[j*N+i]-POST[j*N+i];if(dd>.4){var t=Math.min(1,(dd-.4)/1.6),nz=fbm(lx*.5,ly*.5),sh=.33+.24*nz;r=r*(1-t)+sh*.97*t;g=g*(1-t)+sh*t;b=b*(1-t)+sh*1.04*t}}}
+    im.data[o]=r*255;im.data[o+1]=g*255;im.data[o+2]=b*255;im.data[o+3]=255}
+   cx.putImageData(im,0,0);var tx=new THREE.CanvasTexture(cv);tx.encoding=THREE.sRGBEncoding;tx.anisotropy=8;return tx}
+  function terrain(h,tex){var pos=new Float32Array(N*N*3),uv=new Float32Array(N*N*2),idx=[];
+   for(var j=0;j<N;j++)for(var i=0;i<N;i++){var q=j*N+i;pos[q*3]=-half+i;pos[q*3+1]=isNaN(h[q])?-40:h[q];pos[q*3+2]=-(-half+j);uv[q*2]=i/(N-1);uv[q*2+1]=j/(N-1)}
+   for(var b=0;b<N-1;b++)for(var a=0;a<N-1;a++){var p=b*N+a,r=p+1,u=p+N,v=u+1;if(isNaN(h[p])||isNaN(h[r])||isNaN(h[u])||isNaN(h[v]))continue;idx.push(p,r,v,p,v,u)}
+   var g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('uv',new THREE.BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
+   var m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide}));m.receiveShadow=true;m.castShadow=true;return m}
+
+  // Rock pieces and voxels share one per-block colour.
+  function rockGeometry(seed){var g=new THREE.IcosahedronGeometry(1,1).toNonIndexed(),p=g.attributes.position;
+   for(var i=0;i<p.count;i++){var x=p.getX(i),y=p.getY(i),z=p.getZ(i),k=Math.round(x*40)*3+Math.round(y*40)*7+Math.round(z*40)*11,f=.74+.48*hash(k,seed);f=Math.round(f*5)/5;p.setXYZ(i,x*f,y*f*.86,z*f)}
+   g.computeVertexNormals();return g}
+  var CAP=Math.max.apply(null,META.cases.map(function(c){return c.n})),K=7;
+  var rockMat=new THREE.MeshLambertMaterial({flatShading:true}),boxMat=new THREE.MeshLambertMaterial();
+  function chipGeometry(){var g=new THREE.IcosahedronGeometry(1,0).toNonIndexed(),p=g.attributes.position;for(var i=0;i<p.count;i++){var x=p.getX(i),y=p.getY(i),z=p.getZ(i),k=Math.round(x*40)*3+Math.round(y*40)*7+Math.round(z*40)*11,f=.72+.5*hash(k,9);p.setXYZ(i,x*f,y*f*.8,z*f)}g.computeVertexNormals();return g}
+  var frags=new THREE.InstancedMesh(chipGeometry(),new THREE.MeshLambertMaterial({flatShading:true}),CAP*K);frags.frustumCulled=false;frags.receiveShadow=true;frags.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(frags);
+  var rocks=new THREE.InstancedMesh(rockGeometry(4),rockMat,CAP),boxes=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),boxMat,CAP);
+  var grey=new THREE.Color(.2,.2,.2);for(var ci=0;ci<CAP;ci++){rocks.setColorAt(ci,grey);boxes.setColorAt(ci,grey)}for(ci=0;ci<CAP*K;ci++)frags.setColorAt(ci,grey);
+  [rocks,boxes].forEach(function(m){m.castShadow=true;m.receiveShadow=true;m.frustumCulled=false;m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(m)});
+
+  // Solid skin under the blocks so the mass reads as one body.
+  var skinGeo=new THREE.BufferGeometry(),skinPos=new Float32Array(N*N*3),skinCol=new Float32Array(N*N*3),skinIdx=[];
+  for(var j=0;j<N;j++)for(var i=0;i<N;i++){var q=j*N+i;skinPos[q*3]=-half+i;skinPos[q*3+2]=half-j;var nz=.035+.05*fbm(i*.9,j*.9);skinCol[q*3]=nz*.97;skinCol[q*3+1]=nz;skinCol[q*3+2]=nz*1.06}
+  for(var b=0;b<N-1;b++)for(var a=0;a<N-1;a++){var p=b*N+a;skinIdx.push(p,p+1,p+N+1,p,p+N+1,p+N)}
+  skinGeo.setAttribute('position',new THREE.BufferAttribute(skinPos,3));skinGeo.setAttribute('color',new THREE.BufferAttribute(skinCol,3));skinGeo.setIndex(skinIdx);
+  var skin=new THREE.Mesh(skinGeo,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}));skin.receiveShadow=true;skin.frustumCulled=false;scene.add(skin);
+
+  // Illustrative dust and flash: driven only by hole fire times, never fed back into the numbers.
+  var DUST=1800,dGeo=new THREE.BufferGeometry(),dp=new Float32Array(DUST*3),da=new Float32Array(DUST),ds=new Float32Array(DUST);
+  dGeo.setAttribute('position',new THREE.BufferAttribute(dp,3));dGeo.setAttribute('alpha',new THREE.BufferAttribute(da,1));dGeo.setAttribute('sz',new THREE.BufferAttribute(ds,1));
+  var dMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{scale:{value:600},col:{value:new THREE.Color(.74,.70,.62)}},
+   vertexShader:'attribute float alpha;attribute float sz;varying float a;uniform float scale;void main(){a=alpha;vec4 mv=modelViewMatrix*vec4(position,1.);gl_PointSize=sz*scale/-mv.z;gl_Position=projectionMatrix*mv;}',
+   fragmentShader:'varying float a;uniform vec3 col;void main(){float d=length(gl_PointCoord-.5)*2.;float f=1.-smoothstep(.15,1.,d);if(f*a<.004)discard;gl_FragColor=vec4(col,f*a);}'});
+  var dust=new THREE.Points(dGeo,dMat);dust.frustumCulled=false;scene.add(dust);
+  var flashes=S.holes.map(function(h){var m=new THREE.PointLight(0xffb066,0,38,2);m.position.set(h[0],h[2]+1,-h[1]);return m});flashes.slice(0,6).forEach(function(f){scene.add(f)});
+  var holeOrder=S.holes.slice().sort(function(a,b){return a[3]-b[3]}),lastFire=holeOrder[holeOrder.length-1][3]/1000;
+  function updateDust(t){var on=dustOn;dust.visible=on;for(var i=0;i<DUST;i++){var h=holeOrder[i%holeOrder.length],t0=h[3]/1000+hash(i,1)*.12,age=t-t0;
+    if(!on||age<=0){da[i]=0;continue}
+    var life=5+hash(i,2)*5,k=age/life;if(k>=1){da[i]=0;continue}
+    var ang=hash(i,3)*6.283,sp=2+hash(i,4)*5,rise=(5+hash(i,5)*11)*(1-Math.exp(-age*.9))+age*.45,out=sp*(1-Math.exp(-age*.8));
+    dp[i*3]=h[0]+Math.cos(ang)*out+age*1.4+2;dp[i*3+1]=h[2]+rise;dp[i*3+2]=-h[1]+Math.sin(ang)*out-age*.5;
+    da[i]=.34*Math.min(1,age*5)*(1-k)*(1-k);ds[i]=(5+hash(i,6)*8)*(1+age*.5)}
+   dGeo.attributes.position.needsUpdate=true;dGeo.attributes.alpha.needsUpdate=true;dGeo.attributes.sz.needsUpdate=true;
+   var fi=0;holeOrder.forEach(function(h){var age=t-h[3]/1000;if(on&&age>=0&&age<.09&&fi<6){var f=flashes[fi++];f.position.set(h[0],h[2]+1,-h[1]);f.intensity=3*(1-age/.09)}});for(;fi<6;fi++)flashes[fi].intensity=0}
+
+  var pre=null,post=null,cases={},cur=null,t=0,playing=false,speed=1,mode='rock',dustOn=false,prev=performance.now(),lastSkinFrame=-1;
+  var M=new THREE.Matrix4(),Q=new THREE.Quaternion(),E=new THREE.Euler(),V=new THREE.Vector3(),SC=new THREE.Vector3(),HID=new THREE.Matrix4().makeScale(0,0,0);
+  function load(c){if(cases[c.key])return Promise.resolve(cases[c.key]);badge.textContent='Loading '+c.title.toLowerCase()+' run…';
+   function part(name){return new Promise(function(ok,no){var e=document.createElement('script');e.src=name+'.js';e.onload=function(){var b=window.BLASTDATA[name];delete window.BLASTDATA[name];ok(Uint8Array.from(atob(b),function(x){return x.charCodeAt(0)}).buffer)};e.onerror=no;document.head.appendChild(e)})}
+   return Promise.all([part(c.key+'-pos'),part(c.key+'-rot')]).then(function(v){var bl=new Uint8Array(c.n);(c.boulderIdx||[]).forEach(function(x){bl[x]=1});return cases[c.key]={c:c,F:c.times.length,P:new Int16Array(v[0]),R:new Int8Array(v[1]),boulder:bl}})}
+  var tmpc=new THREE.Color();
+  function paint(){var D=cur,col=new THREE.Color();for(var i=0;i<n;i++){var x=D.P[i*3]*.05,y=D.P[i*3+1]*.05,z=D.P[i*3+2]*.05,c=orthoAt(x+S.cx,y+S.cy),ii=Math.max(0,Math.min(N-1,Math.round(x+half))),jj=Math.max(0,Math.min(N-1,Math.round(y+half))),depth=PRE[jj*N+ii]-z,v=.8+.4*hash(i,7),sh=(.34+.2*hash(i,8))*v,sur=depth<1.6?1:0;
+    col.setRGB(sur?c[0]*v:sh*.97,sur?c[1]*v:sh,sur?c[2]*v:sh*1.04);col.convertSRGBToLinear();boxes.setColorAt(i,col);var big=D.boulder[i];tmpc.copy(col).multiplyScalar(big?1.05:.62);rocks.setColorAt(i,tmpc);for(var j=0;j<K;j++){tmpc.copy(col).multiplyScalar(.75+.7*hash(i*K+j,12));frags.setColorAt(i*K+j,tmpc)}}
+   rocks.instanceColor.needsUpdate=true;boxes.instanceColor.needsUpdate=true;frags.instanceColor.needsUpdate=true}
+  // Fragments are sampled from the Kuz-Ram curve by mass: drawn only, they carry no physics.
+  function buildFrags(D){if(D.L)return;var c=D.c,x50=c.frag.x50,un=c.frag.n,L=new Float32Array(c.n*K*16),m=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),o=new THREE.Vector3(),sv=new THREE.Vector3();
+   for(var i=0;i<c.n;i++)for(var j=0;j<K;j++){var u=i*K+j,p=(j+hash(u,13))/K,d=x50*Math.pow(-Math.log(1-Math.min(.995,p))/.693,1/un),r=Math.max(.09,Math.min(c.rad[i]*.8,d/2)),th=hash(u,14)*6.283,cz=2*hash(u,15)-1,sz=Math.sqrt(1-cz*cz),dist=c.rad[i]*(.85+.4*hash(u,16));o.set(Math.cos(th)*sz*dist,cz*dist,Math.sin(th)*sz*dist);e.set(hash(u,17)*6.28,hash(u,18)*6.28,hash(u,19)*6.28);q.setFromEuler(e);sv.set(r*(.8+.45*hash(u,20)),r*(.7+.4*hash(u,21)),r*(.8+.45*hash(u,22)));m.compose(o,q,sv);L.set(m.elements,u*16)}
+   D.L=L}
+  var ONE=new THREE.Vector3(1,1,1);function hideChips(fa,i){var s=i*K*16;for(var q=s;q<s+K*16;q++)fa[q]=0}
+  function frameAt(T){var ts=cur.c.times,a=0,b=ts.length-1;if(T<=0)return [0,0,0];if(T>=ts[b])return [b,b,0];while(b-a>1){var m=(a+b)>>1;if(ts[m]<=T)a=m;else b=m}return [a,b,(T-ts[a])/(ts[b]-ts[a])]}
+  function rotLerp(a,b,f){var d=b-a;if(d>127)d-=254;if(d<-127)d+=254;return (a+d*f)/127*6.2832}
+  function show(T){var D=cur,c=D.c,fr=frameAt(T),a=fr[0],b=fr[1],f=fr[2],ao=a*n*3,bo=b*n*3,fire=c.fire,rad=c.rad,P=D.P,R=D.R;
+   var rockScale=1.42,fa=frags.instanceMatrix.array,L=D.L,Bl=D.boulder;
+   for(var i=0;i<n;i++){var k=i*3,x=(P[ao+k]+(P[bo+k]-P[ao+k])*f)*.05,y=(P[ao+k+1]+(P[bo+k+1]-P[ao+k+1])*f)*.05,z=(P[ao+k+2]+(P[bo+k+2]-P[ao+k+2])*f)*.05,fired=T>=fire[i];
+    V.set(x,z,-y);
+    if(mode==='voxel'){SC.setScalar(S.res*.97);if(fired){E.set(rotLerp(R[ao+k],R[bo+k],f),rotLerp(R[ao+k+1],R[bo+k+1],f),rotLerp(R[ao+k+2],R[bo+k+2],f))}else E.set(0,0,0);Q.setFromEuler(E);M.compose(V,Q,SC);boxes.setMatrixAt(i,M);rocks.setMatrixAt(i,HID);hideChips(fa,i)}
+    else if(!fired){SC.setScalar(S.res*.985);Q.identity();M.compose(V,Q,SC);boxes.setMatrixAt(i,M);rocks.setMatrixAt(i,HID);hideChips(fa,i)}
+    else{var h1=hash(i,9),h2=hash(i,10),h3=hash(i,11),r=Bl[i]?rad[i]*1.08:rad[i]*rockScale*(.62+.5*h1);SC.set(r*(.8+.4*h2),r*(.75+.4*h3),r*(.8+.4*h1));E.set(rotLerp(R[ao+k],R[bo+k],f)+h1*6.28,rotLerp(R[ao+k+1],R[bo+k+1],f)+h2*6.28,rotLerp(R[ao+k+2],R[bo+k+2],f)+h3*6.28);Q.setFromEuler(E);M.compose(V,Q,SC);rocks.setMatrixAt(i,M);boxes.setMatrixAt(i,HID);
+     if(Bl[i])hideChips(fa,i);else{M.compose(V,Q,ONE);var b=M.elements;for(var j=0;j<K;j++){var u=(i*K+j)*16;for(var c2=0;c2<4;c2++){var l0=L[u+c2*4],l1=L[u+c2*4+1],l2=L[u+c2*4+2],w=c2===3?1:0;fa[u+c2*4]=b[0]*l0+b[4]*l1+b[8]*l2+w*b[12];fa[u+c2*4+1]=b[1]*l0+b[5]*l1+b[9]*l2+w*b[13];fa[u+c2*4+2]=b[2]*l0+b[6]*l1+b[10]*l2+w*b[14];fa[u+c2*4+3]=w}}}}}
+   frags.instanceMatrix.needsUpdate=true;
+   rocks.instanceMatrix.needsUpdate=true;boxes.instanceMatrix.needsUpdate=true;
+   var began=T>0;pre.visible=!began;post.visible=true;pre.visible=false;
+   var skinF=(a<<1)+(f>.5?1:0);if(skinF!==lastSkinFrame){updateSkin(f>.5?b:a);lastSkinFrame=skinF}
+   skin.visible=mode==='rock'&&T>0;
+   updateDust(T);
+   clock.textContent=T.toFixed(2)+' s';slider.value=T;
+   var rest=c.rest[a];badge.textContent=c.title+' · '+rest.toLocaleString()+' of '+n.toLocaleString()+' blocks at rest · '+(T===0?'before firing':T<lastFire?'firing':'after firing');}
+  // Only slow blocks in a real stack join the skin: flying or scattered rock doesn't lift it.
+  function updateSkin(fr){var D=cur,P=D.P,g=fr*n*3,gp=Math.max(0,fr-1)*n*3,cnt=new Float32Array(N*N),hi=new Float32Array(N*N).fill(-1e9),dt=fr>0?cur.c.times[fr]-cur.c.times[fr-1]:1;
+   for(var i=0;i<n;i++){if(cur.c.times[fr]<cur.c.fire[i])continue;var k=i*3,dx=(P[g+k]-P[gp+k])*.05,dy=(P[g+k+1]-P[gp+k+1])*.05,dz=(P[g+k+2]-P[gp+k+2])*.05;if(dx*dx+dy*dy+dz*dz>4*dt*dt)continue;
+    var a=Math.round(P[g+k]*.05+half),b=Math.round(P[g+k+1]*.05+half);if(a<0||b<0||a>=N||b>=N)continue;var q=b*N+a,z=P[g+k+2]*.05;cnt[q]++;if(z>hi[q])hi[q]=z}
+   var raw=new Float32Array(N*N);for(var j=0;j<N;j++)for(var i2=0;i2<N;i2++){var q2=j*N+i2,base=POST[q2]-.7,sum=0,h=-1e9;for(var b2=Math.max(0,j-1);b2<=Math.min(N-1,j+1);b2++)for(var a2=Math.max(0,i2-1);a2<=Math.min(N-1,i2+1);a2++){var w=b2*N+a2;sum+=cnt[w];if(hi[w]>h)h=hi[w]}
+    raw[q2]=(sum/9>=1.0&&h-1.0>base)?h-1.0:base}
+   var pa=skinGeo.attributes.position.array;for(var j3=0;j3<N;j3++)for(var i3=0;i3<N;i3++){var q3=j3*N+i3,v=raw[q3],m=0,c=0;for(var b3=Math.max(0,j3-1);b3<=Math.min(N-1,j3+1);b3++)for(var a3=Math.max(0,i3-1);a3<=Math.min(N-1,i3+1);a3++){var u=raw[b3*N+a3];if(!isNaN(u)){m+=u;c++}}pa[q3*3+1]=isNaN(v)?-60:(v>POST[q3]-.6?m/c:v)}
+   skinGeo.attributes.position.needsUpdate=true;skinGeo.computeVertexNormals()}
+
+  function setCase(key){var c=META.cases.filter(function(x){return x.key===key})[0];document.querySelectorAll('#cases button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.key===key))});renderStats(c);renderTable(key);renderSection(c);
+   load(c).then(function(D){cur=D;n=c.n;rocks.count=n;boxes.count=n;frags.count=n*K;lastSkinFrame=-1;buildFrags(D);paint();slider.max=c.lastT;var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;t=reduce?c.lastT:0;show(t);playing=!reduce;btn.textContent=playing?'Pause':'Play'}).catch(function(){badge.textContent='Could not load this run. Reload the page.'})}
+  function pctOver(f,x){var v=100*Math.exp(-.693*Math.pow(x/f.x50,f.n));return (v<1?v.toFixed(2):v.toFixed(1))+'%'}
+  function fmt(v){return Math.round(v).toLocaleString()}
+  function renderStats(c){var m=c.metrics,z=META.volumeM3;function it(l,v,s){return '<div><label>'+l+'</label><b>'+v+'</b><span>'+s+'</span></div>'}
+   document.getElementById('stats').innerHTML=it('Rock broken',fmt(Math.round(z.central/100)*100)+' m³','range '+fmt(z.low/100*100)+'–'+fmt(z.high)+' m³; about 58,000 t at an assumed density')+it('Loose pile',fmt(Math.round(m.pileVolM3/100)*100)+' m³','measured from the settled blocks')+it('Pile footprint',fmt(Math.round(m.footprintM2/10)*10)+' m²','ground at least 0.5 m deep in rock')+it('Average throw',c.checks.throw.toFixed(1)+' m','centre of mass, toward '+c.checks.bearing.toFixed(0)+'°')+it('Median fragment',Math.round(c.frag.x50*100)+' cm','Kuz-Ram estimate; '+pctOver(c.frag,1)+' of the rock over 1 m')+it('Boulders simulated',fmt(c.frag.boulders),'up to '+c.frag.largestCells+' cells merged; finer rock stays lumped')+it('Pile front',m.frontP95.toFixed(0)+' m','past the block edge; 95% of rock stops short of it')}
+  function renderTable(key){var h='<thead><tr><th>Run</th><th>Settings</th><th>Loose pile</th><th>Footprint</th><th>Average throw</th><th>Direction</th><th>Pile front</th><th>Blocks past 100 m</th></tr></thead><tbody>';META.cases.forEach(function(c){var m=c.metrics;h+='<tr'+(c.key===key?' class="on"':'')+'><th scope="row">'+c.title+'</th><td>'+c.desc+'</td><td>'+fmt(m.pileVolM3)+' m³</td><td>'+fmt(m.footprintM2)+' m²</td><td>'+c.checks.throw.toFixed(1)+' m</td><td>'+c.checks.bearing.toFixed(0)+'°</td><td>'+m.frontP95.toFixed(0)+' m</td><td>'+fmt(m.over100)+'</td></tr>'});document.getElementById('table').innerHTML=h+'</tbody>';
+   document.getElementById('tablenote').textContent='All these runs use the central break zone, so they leave out its 3,530–43,987 m³ range. Within them, friction moves the average throw from 12 to 29 m, while coarser rock barely changes it. The paper launch was tuned on a deeper shot and flings too much rock too far here, so it is listed as a warning about moving settings between sites.'}
+  function renderCurve(){var W=1000,H=360,L=56,R=24,T=16,B=48,xmin=.02,xmax=4,lx=function(x){return L+(Math.log10(x)-Math.log10(xmin))/(Math.log10(xmax)-Math.log10(xmin))*(W-L-R)},ly=function(p){return T+(100-p)/100*(H-T-B)},s='';
+   [.02,.05,.1,.2,.5,1,2,4].forEach(function(x){s+='<line class="grid" x1="'+lx(x)+'" x2="'+lx(x)+'" y1="'+T+'" y2="'+(H-B)+'"/><text class="tick" x="'+lx(x)+'" y="'+(H-B+18)+'" text-anchor="middle">'+x+'</text>'});
+   [0,25,50,75,100].forEach(function(p){s+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+ly(p)+'" y2="'+ly(p)+'"/><text class="tick" x="'+(L-8)+'" y="'+(ly(p)+4)+'" text-anchor="end">'+p+'%</text>'});
+   var n=META.cases[0].frag.n;[[.107,'Fine rock, 11 cm','var(--cool)','6 3'],[META.cases[0].frag.x50,'Central, 27 cm','var(--accent)',''],[META.cases[1].frag.x50,'Coarse rock, 50 cm','var(--ok)','6 3']].forEach(function(cv){var a=[];for(var i=0;i<=120;i++){var x=xmin*Math.pow(xmax/xmin,i/120),p=100*(1-Math.exp(-.693*Math.pow(x/cv[0],n)));a.push(lx(x).toFixed(1)+','+ly(p).toFixed(1))}s+='<polyline points="'+a.join(' ')+'" fill="none" stroke="'+cv[2]+'" stroke-width="2.5"'+(cv[3]?' stroke-dasharray="'+cv[3]+'"':'')+'/><text x="'+(lx(cv[0])+10)+'" y="'+(ly(50)+4)+'" font-size="14" font-weight="600" fill="'+cv[2]+'" paint-order="stroke" stroke="var(--panel)" stroke-width="4">'+cv[1]+'</text>'});
+   document.getElementById('curve').innerHTML='<svg class="sec" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Fragment size curves for fine, central and coarse rock">'+s+'<text class="tick" x="'+((L+W-R)/2)+'" y="'+(H-10)+'" text-anchor="middle">Fragment size (m, log scale)</text><text class="tick" transform="translate(14 '+((T+H-B)/2)+') rotate(-90)" text-anchor="middle">Finer than this size</text></svg>'}
+  renderCurve();
+  function renderSection(c){var W=1000,H=420,L=56,R=20,T=16,B=44,xmin=-60,xmax=95,zs=[];var row=Math.floor(N/2),preR=[],postR=[];for(var i=0;i<N;i++){preR.push(PRE[row*N+i]);postR.push(POST[row*N+i]);zs.push(PRE[row*N+i],POST[row*N+i],c.top[i])}
+   var fin=[];for(var ix=0;ix<N;ix++){var xx=-half+ix;if(xx>=xmin&&xx<=xmax&&!isNaN(preR[ix]))fin.push(preR[ix],postR[ix],c.top[ix])}var zmin=Math.floor(Math.min.apply(null,fin)/10)*10-5,zmax=Math.ceil(Math.max.apply(null,fin)/10)*10+5,sx=function(x){return L+(x-xmin)/(xmax-xmin)*(W-L-R)},sz=function(z){return T+(zmax-z)/(zmax-zmin)*(H-T-B)},s='';H=Math.round(T+B+(zmax-zmin)*(W-L-R)/(xmax-xmin));
+   for(var x=-60;x<=90;x+=20)s+='<line class="grid" x1="'+sx(x)+'" x2="'+sx(x)+'" y1="'+T+'" y2="'+(H-B)+'"/><text class="tick" x="'+sx(x)+'" y="'+(H-B+18)+'" text-anchor="middle">'+x+'</text>';
+   for(var z=Math.ceil(zmin/10)*10;z<=zmax;z+=10)s+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+sz(z)+'" y2="'+sz(z)+'"/><text class="tick" x="'+(L-8)+'" y="'+(sz(z)+4)+'" text-anchor="end">'+z+'</text>';
+   var poly='',lower='',a=[],b=[];for(var i2=0;i2<N;i2++){var x2=-half+i2;if(x2<xmin||x2>xmax||isNaN(postR[i2]))continue;poly+=sx(x2).toFixed(1)+','+sz(Math.max(c.top[i2],postR[i2])).toFixed(1)+' ';lower=sx(x2).toFixed(1)+','+sz(postR[i2]).toFixed(1)+' '+lower;a.push(sx(x2).toFixed(1)+','+sz(preR[i2]).toFixed(1));b.push(sx(x2).toFixed(1)+','+sz(postR[i2]).toFixed(1))}
+   s+='<polygon points="'+poly+lower+'" fill="var(--accent)" opacity=".82"/><polyline points="'+a.join(' ')+'" fill="none" stroke="var(--fg)" stroke-width="2.5"/><polyline points="'+b.join(' ')+'" fill="none" stroke="var(--ok)" stroke-width="2" stroke-dasharray="7 5"/>';
+   document.getElementById('section').innerHTML='<svg class="sec" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Cross-section of original ground, cut ground and final pile, '+c.title+' run">'+s+'<text class="tick" x="'+((L+W-R)/2)+'" y="'+(H-10)+'" text-anchor="middle">Distance from block centre (m), west to east</text><text class="tick" transform="translate(14 '+((T+H-B)/2)+') rotate(-90)" text-anchor="middle">Height (m, local)</text></svg>'}
+
+  META.cases.filter(function(c){return c.anim}).forEach(function(c){var b=document.createElement('button');b.type='button';b.textContent=c.title;b.dataset.key=c.key;b.addEventListener('click',function(){setCase(c.key)});document.getElementById('cases').appendChild(b)});
+  function press(sel,val,attr){document.querySelectorAll(sel).forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset[attr]===String(val)))})}
+  document.querySelectorAll('[data-speed]').forEach(function(b){b.addEventListener('click',function(){speed=+b.dataset.speed;press('[data-speed]',speed,'speed')})});
+  document.querySelectorAll('[data-mode]').forEach(function(b){b.addEventListener('click',function(){mode=b.dataset.mode;press('[data-mode]',mode,'mode');if(cur)show(t)})});
+  press('[data-speed]',1,'speed');press('[data-mode]','rock','mode');
+  slider.addEventListener('input',function(){t=+slider.value;playing=false;btn.textContent='Play';if(cur)show(t)});
+  btn.addEventListener('click',function(){if(!cur)return;if(t>=cur.c.lastT)t=0;playing=!playing;btn.textContent=playing?'Pause':'Play'});
+  function size(){var w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();dMat.uniforms.scale.value=h*1.1*renderer.getPixelRatio()}addEventListener('resize',size);size();
+  function loop(now){requestAnimationFrame(loop);var dt=Math.min(.1,(now-prev)/1000);prev=now;if(playing&&cur){t+=dt*speed;if(t>=cur.c.lastT){t=cur.c.lastT;playing=false;btn.textContent='Play again'}show(t)}controls.update();renderer.render(scene,camera)}
+  var img=new Image();img.onload=function(){var cv=document.createElement('canvas');cv.width=img.width;cv.height=img.height;var cx=cv.getContext('2d');cx.drawImage(img,0,0);ortho={w:img.width,h:img.height,d:cx.getImageData(0,0,img.width,img.height).data};
+   var postTex=bakeTexture(true);post=terrain(POST,postTex);pre=terrain(PRE,postTex);pre.visible=false;scene.add(post);setCase(META.cases[0].key);requestAnimationFrame(loop)};
+  img.src='data:image/jpeg;base64,'+META.crop.b64;
+  })();
+</script>

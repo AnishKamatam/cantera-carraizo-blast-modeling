@@ -1,0 +1,235 @@
+{
+ "calibration": "uncalibrated",
+ "note": "Not for safety decisions. Launch strength was tuned on SWELLFACTOR, so its throw match is weak evidence. Block B uses a design borrowed from SWELLFACTOR; nothing has been measured at Carraizo.",
+ "swellfactor": {
+  "script": "scripts/score-swellfactor.mjs",
+  "survey": {
+   "throwM": 34.0,
+   "bearingDeg": 130.1,
+   "swellOfPile": 1.447
+  },
+  "nothingMoved": {
+   "rmseM": 7.28,
+   "biasM": -2.75,
+   "footprintIoU": 0.499
+  },
+  "oldContact": {
+   "options": {
+    "maxVoxels": 15000
+   },
+   "runs": [
+    {
+     "seed": 1,
+     "rmseM": 5.27,
+     "biasM": -3.79,
+     "footprintIoU": 0.677,
+     "swellOfPile": 0.77,
+     "throwM": 15.2,
+     "bearingDeg": 130.8,
+     "restFraction": 0.957,
+     "settled": false,
+     "blocks": 13193
+    },
+    {
+     "seed": 2,
+     "rmseM": 5.25,
+     "biasM": -3.75,
+     "footprintIoU": 0.678,
+     "swellOfPile": 0.777,
+     "throwM": 15.3,
+     "bearingDeg": 130.6,
+     "restFraction": 0.949,
+     "settled": false,
+     "blocks": 13193
+    },
+    {
+     "seed": 3,
+     "rmseM": 5.24,
+     "biasM": -3.81,
+     "footprintIoU": 0.672,
+     "swellOfPile": 0.767,
+     "throwM": 15.1,
+     "bearingDeg": 130.5,
+     "restFraction": 0.966,
+     "settled": false,
+     "blocks": 13193
+    }
+   ]
+  },
+  "coulombExistingLaunch": {
+   "options": {
+    "maxVoxels": 15000,
+    "contactModel": "coulomb",
+    "friction": 0.5
+   },
+   "runs": [
+    {
+     "seed": 1,
+     "rmseM": 3.53,
+     "biasM": -0.47,
+     "footprintIoU": 0.919,
+     "swellOfPile": 1.363,
+     "throwM": 34.8,
+     "bearingDeg": 127.9,
+     "restFraction": 0.996,
+     "settled": false,
+     "blocks": 13193
+    },
+    {
+     "seed": 2,
+     "rmseM": 3.5,
+     "biasM": -0.5,
+     "footprintIoU": 0.919,
+     "swellOfPile": 1.359,
+     "throwM": 34.7,
+     "bearingDeg": 130.4,
+     "restFraction": 0.997,
+     "settled": false,
+     "blocks": 13193
+    },
+    {
+     "seed": 3,
+     "rmseM": 3.55,
+     "biasM": -0.4,
+     "footprintIoU": 0.928,
+     "swellOfPile": 1.376,
+     "throwM": 34.2,
+     "bearingDeg": 130.2,
+     "restFraction": 0.997,
+     "settled": false,
+     "blocks": 13193
+    }
+   ]
+  },
+  "coulombYang1990": {
+   "options": {
+    "maxVoxels": 15000,
+    "contactModel": "coulomb",
+    "friction": 0.5,
+    "velocityModel": "yang1990",
+    "PeAnfo": 30,
+    "Pd": 0.002
+   },
+   "runs": [
+    {
+     "seed": 1,
+     "rmseM": 3.75,
+     "biasM": -0.79,
+     "footprintIoU": 0.932,
+     "swellOfPile": 1.306,
+     "throwM": 32.5,
+     "bearingDeg": 127.5,
+     "restFraction": 0.992,
+     "settled": false,
+     "blocks": 13193
+    },
+    {
+     "seed": 2,
+     "rmseM": 3.5,
+     "biasM": -0.83,
+     "footprintIoU": 0.934,
+     "swellOfPile": 1.298,
+     "throwM": 34.3,
+     "bearingDeg": 127.9,
+     "restFraction": 0.991,
+     "settled": false,
+     "blocks": 13193
+    },
+    {
+     "seed": 3,
+     "rmseM": 3.52,
+     "biasM": -0.72,
+     "footprintIoU": 0.931,
+     "swellOfPile": 1.318,
+     "throwM": 31.6,
+     "bearingDeg": 129.7,
+     "restFraction": 0.991,
+     "settled": false,
+     "blocks": 13193
+    }
+   ]
+  }
+ },
+ "blockB": {
+  "script": "sim/blast-page/build.mjs",
+  "seed": 1,
+  "brokenRockM3": {
+   "central": 21907,
+   "low": 3530,
+   "high": 43987
+  },
+  "runs": [
+   {
+    "run": "frag-mu05",
+    "settings": "Rock factor 7, friction 0.5",
+    "blocks": 21912,
+    "throwM": 17.63,
+    "bearingDeg": 88.6,
+    "restFraction": 0.999,
+    "settled": false,
+    "pileVolumeM3": 33073,
+    "footprintM2": 4864,
+    "pileFrontP95M": 45.7,
+    "blocksPast100M": 7,
+    "x50Cm": 26.7,
+    "uniformityN": 1.63,
+    "boulders": 6
+   },
+   {
+    "run": "frag-mu05-high",
+    "settings": "Rock factor 13, friction 0.5",
+    "blocks": 21057,
+    "throwM": 17.25,
+    "bearingDeg": 87.7,
+    "restFraction": 0.999,
+    "settled": false,
+    "pileVolumeM3": 33211,
+    "footprintM2": 4684,
+    "pileFrontP95M": 45.1,
+    "blocksPast100M": 4,
+    "x50Cm": 49.5,
+    "uniformityN": 1.63,
+    "boulders": 585
+   },
+   {
+    "run": "base-mu03",
+    "settings": "Friction 0.3, no size model",
+    "blocks": 21918,
+    "throwM": 29.36,
+    "bearingDeg": 94.1,
+    "restFraction": 0.988,
+    "settled": false,
+    "pileVolumeM3": 30164,
+    "footprintM2": 5260,
+    "pileFrontP95M": 66.6,
+    "blocksPast100M": 216
+   },
+   {
+    "run": "base-mu07",
+    "settings": "Friction 0.7, no size model",
+    "blocks": 21918,
+    "throwM": 12.1,
+    "bearingDeg": 85.7,
+    "restFraction": 0.997,
+    "settled": false,
+    "pileVolumeM3": 35052,
+    "footprintM2": 4768,
+    "pileFrontP95M": 38.2,
+    "blocksPast100M": 1
+   },
+   {
+    "run": "yang-mu05",
+    "settings": "Yang & Kavetsky launch, Pe 30, Pd 0.002, friction 0.5, no size model",
+    "blocks": 21918,
+    "throwM": 29.64,
+    "bearingDeg": 98,
+    "restFraction": 0.958,
+    "settled": false,
+    "pileVolumeM3": 29872,
+    "footprintM2": 5700,
+    "pileFrontP95M": 96.5,
+    "blocksPast100M": 1765
+   }
+  ]
+ }
+}
